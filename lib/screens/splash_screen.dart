@@ -36,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             const SizedBox(height: 24),
             TextWidget(
-              text: 'Hypertension Survey App',
+              text: 'BantayBP',
               fontSize: 24,
               color: textOnPrimary,
               fontFamily: 'Bold',
