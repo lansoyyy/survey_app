@@ -38,8 +38,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             onPressed: () {
               // Navigate back to admin login
               Navigator.pushNamedAndRemoveUntil(
-                context, 
-                '/admin/login', 
+                context,
+                '/admin/login',
                 (route) => route.isFirst,
               );
             },

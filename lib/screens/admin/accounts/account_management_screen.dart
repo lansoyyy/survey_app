@@ -95,7 +95,27 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
-        return UserDetailsSheet(user: user);
+        return UserDetailsSheet(
+          user: user,
+          onUserUpdated: (updatedUser) {
+            setState(() {
+              final index =
+                  _users.indexWhere((u) => u.userId == updatedUser.userId);
+              if (index != -1) {
+                _users[index] = updatedUser;
+              }
+            });
+          },
+          onUserStatusChanged: (updatedUser) {
+            setState(() {
+              final index =
+                  _users.indexWhere((u) => u.userId == updatedUser.userId);
+              if (index != -1) {
+                _users[index] = updatedUser;
+              }
+            });
+          },
+        );
       },
     );
   }
@@ -292,10 +312,202 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
   }
 }
 
-class UserDetailsSheet extends StatelessWidget {
+class UserDetailsSheet extends StatefulWidget {
   final UserProfile user;
+  final Function(UserProfile) onUserUpdated;
+  final Function(UserProfile) onUserStatusChanged;
 
-  const UserDetailsSheet({super.key, required this.user});
+  const UserDetailsSheet({
+    super.key,
+    required this.user,
+    required this.onUserUpdated,
+    required this.onUserStatusChanged,
+  });
+
+  @override
+  State<UserDetailsSheet> createState() => _UserDetailsSheetState();
+}
+
+class _UserDetailsSheetState extends State<UserDetailsSheet> {
+  late TextEditingController _nameController;
+  late TextEditingController _emailController;
+  late TextEditingController _ageController;
+  late String _gender;
+  late String _accountStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.user.name);
+    _emailController = TextEditingController(text: widget.user.email);
+    _ageController = TextEditingController(text: widget.user.age.toString());
+    _gender = widget.user.gender;
+    _accountStatus = widget.user.accountStatus;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _ageController.dispose();
+    super.dispose();
+  }
+
+  void _editUser() {
+    // Close the bottom sheet
+    Navigator.of(context).pop();
+
+    // Show edit dialog
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: TextWidget(
+            text: 'Edit User',
+            fontSize: 20,
+            color: textPrimary,
+            fontFamily: 'Bold',
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _nameController,
+                  decoration: InputDecoration(
+                    labelText: 'Name',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _emailController,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _ageController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Age',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: TextWidget(
+                text: 'Cancel',
+                fontSize: 16,
+                color: textLight,
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // Validate inputs
+                if (_nameController.text.isEmpty ||
+                    _emailController.text.isEmpty ||
+                    _ageController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: TextWidget(
+                        text: 'Please fill all fields',
+                        fontSize: 14,
+                        color: textOnPrimary,
+                      ),
+                      backgroundColor: healthRed,
+                    ),
+                  );
+                  return;
+                }
+
+                // Update user
+                final updatedUser = UserProfile(
+                  userId: widget.user.userId,
+                  name: _nameController.text,
+                  email: _emailController.text,
+                  age: int.parse(_ageController.text),
+                  gender: _gender,
+                  registrationDate: widget.user.registrationDate,
+                  lastLogin: widget.user.lastLogin,
+                  accountStatus: widget.user.accountStatus,
+                );
+
+                Navigator.of(context).pop();
+                widget.onUserUpdated(updatedUser);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: TextWidget(
+                      text: 'User updated successfully',
+                      fontSize: 14,
+                      color: textOnPrimary,
+                    ),
+                    backgroundColor: healthGreen,
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: TextWidget(
+                text: 'Save',
+                fontSize: 16,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _toggleUserStatus() {
+    // Close the bottom sheet
+    Navigator.of(context).pop();
+
+    // Toggle status
+    final newStatus = _accountStatus == 'active' ? 'inactive' : 'active';
+    final updatedUser = UserProfile(
+      userId: widget.user.userId,
+      name: widget.user.name,
+      email: widget.user.email,
+      age: widget.user.age,
+      gender: widget.user.gender,
+      registrationDate: widget.user.registrationDate,
+      lastLogin: widget.user.lastLogin,
+      accountStatus: newStatus,
+    );
+
+    widget.onUserStatusChanged(updatedUser);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: TextWidget(
+          text: 'User ${newStatus}d successfully',
+          fontSize: 14,
+          color: textOnPrimary,
+        ),
+        backgroundColor: newStatus == 'active' ? healthGreen : healthRed,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -311,7 +523,7 @@ class UserDetailsSheet extends StatelessWidget {
                 radius: 30,
                 backgroundColor: primary.withOpacity(0.1),
                 child: TextWidget(
-                  text: user.name.substring(0, 1).toUpperCase(),
+                  text: widget.user.name.substring(0, 1).toUpperCase(),
                   fontSize: 24,
                   color: primary,
                   fontFamily: 'Bold',
@@ -321,7 +533,7 @@ class UserDetailsSheet extends StatelessWidget {
             const SizedBox(height: 16),
             Center(
               child: TextWidget(
-                text: user.name,
+                text: widget.user.name,
                 fontSize: 20,
                 color: textPrimary,
                 fontFamily: 'Bold',
@@ -330,61 +542,34 @@ class UserDetailsSheet extends StatelessWidget {
             const SizedBox(height: 4),
             Center(
               child: TextWidget(
-                text: user.email,
+                text: widget.user.email,
                 fontSize: 14,
                 color: textLight,
               ),
             ),
             const SizedBox(height: 24),
-            _buildDetailRow('User ID', user.userId),
-            _buildDetailRow('Age', '${user.age} years'),
-            _buildDetailRow('Gender', user.gender),
+            _buildDetailRow('User ID', widget.user.userId),
+            _buildDetailRow('Age', '${widget.user.age} years'),
+            _buildDetailRow('Gender', widget.user.gender),
             _buildDetailRow('Registration Date',
-                '${user.registrationDate.day}/${user.registrationDate.month}/${user.registrationDate.year}'),
+                '${widget.user.registrationDate.day}/${widget.user.registrationDate.month}/${widget.user.registrationDate.year}'),
             _buildDetailRow('Last Login',
-                '${user.lastLogin.day}/${user.lastLogin.month}/${user.lastLogin.year}'),
-            _buildDetailRow('Status', user.accountStatus.capitalize()),
+                '${widget.user.lastLogin.day}/${widget.user.lastLogin.month}/${widget.user.lastLogin.year}'),
+            _buildDetailRow('Status', widget.user.accountStatus.capitalize()),
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ButtonWidget(
                   label: 'Edit',
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: TextWidget(
-                          text:
-                              'Edit user functionality would be implemented here',
-                          fontSize: 14,
-                          color: textOnPrimary,
-                        ),
-                        backgroundColor: primary,
-                      ),
-                    );
-                  },
+                  onPressed: _editUser,
                   width: 120,
                   height: 40,
                 ),
                 ButtonWidget(
-                  label: user.accountStatus == 'active' ? 'Disable' : 'Enable',
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: TextWidget(
-                          text:
-                              '${user.accountStatus == 'active' ? 'Disable' : 'Enable'} user functionality would be implemented here',
-                          fontSize: 14,
-                          color: textOnPrimary,
-                        ),
-                        backgroundColor: primary,
-                      ),
-                    );
-                  },
-                  color:
-                      user.accountStatus == 'active' ? healthRed : healthGreen,
+                  label: _accountStatus == 'active' ? 'Disable' : 'Enable',
+                  onPressed: _toggleUserStatus,
+                  color: _accountStatus == 'active' ? healthRed : healthGreen,
                   width: 120,
                   height: 40,
                 ),

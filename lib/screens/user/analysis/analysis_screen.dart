@@ -26,7 +26,8 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     },
     {
       'title': 'Stress Management',
-      'description': 'Practice relaxation techniques like meditation or deep breathing',
+      'description':
+          'Practice relaxation techniques like meditation or deep breathing',
       'priority': 'medium',
     },
     {
@@ -51,6 +52,164 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     {'month': 'Jun', 'score': 30},
   ];
 
+  // Show dialog for export options
+  void _showExportOptionsDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: grey,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextWidget(
+                text: 'Export Health Report',
+                fontSize: 20,
+                color: textPrimary,
+                fontFamily: 'Bold',
+              ),
+              const SizedBox(height: 8),
+              TextWidget(
+                text: 'Choose a format to export your health report',
+                fontSize: 14,
+                color: textLight,
+              ),
+              const SizedBox(height: 24),
+              _buildExportOption(
+                Icons.picture_as_pdf,
+                'PDF Document',
+                'Detailed report with charts and recommendations',
+                () => _exportReport('PDF'),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Build an export option card
+  Widget _buildExportOption(
+      IconData icon, String title, String description, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: surface,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: primary),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextWidget(
+                      text: title,
+                      fontSize: 16,
+                      color: textPrimary,
+                      fontFamily: 'Bold',
+                    ),
+                    const SizedBox(height: 4),
+                    TextWidget(
+                      text: description,
+                      fontSize: 13,
+                      color: textLight,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, size: 16, color: textLight),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Export the health report
+  void _exportReport(String format) {
+    Navigator.of(context).pop(); // Close the bottom sheet
+
+    // Show progress dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: primary),
+              const SizedBox(height: 20),
+              TextWidget(
+                text: 'Generating $format Report...',
+                fontSize: 16,
+                color: textPrimary,
+                fontFamily: 'Bold',
+              ),
+              const SizedBox(height: 8),
+              TextWidget(
+                text: 'Please wait while we prepare your health report',
+                fontSize: 14,
+                color: textLight,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    // Simulate export process
+    Future.delayed(const Duration(seconds: 2), () {
+      Navigator.of(context).pop(); // Close progress dialog
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: TextWidget(
+            text: 'Health report exported successfully as $format!',
+            fontSize: 14,
+            color: textOnPrimary,
+          ),
+          backgroundColor: healthGreen,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -68,7 +227,8 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           const RiskAssessmentCard(
             riskScore: 32.0,
             riskLevel: 'Elevated',
-            description: 'Your hypertension risk is elevated. Follow the recommendations to reduce your risk.',
+            description:
+                'Your hypertension risk is elevated. Follow the recommendations to reduce your risk.',
           ),
           const SizedBox(height: 24),
           TextWidget(
@@ -104,19 +264,19 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                           Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: recommendation['priority'] == 'high' 
-                                ? healthRed.withOpacity(0.1) 
-                                : accent.withOpacity(0.1),
+                              color: recommendation['priority'] == 'high'
+                                  ? healthRed.withOpacity(0.1)
+                                  : accent.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Icon(
-                              recommendation['priority'] == 'high' 
-                                ? Icons.warning_amber 
-                                : Icons.info,
+                              recommendation['priority'] == 'high'
+                                  ? Icons.warning_amber
+                                  : Icons.info,
                               size: 20,
-                              color: recommendation['priority'] == 'high' 
-                                ? healthRed 
-                                : accent,
+                              color: recommendation['priority'] == 'high'
+                                  ? healthRed
+                                  : accent,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -167,19 +327,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           Center(
             child: ButtonWidget(
               label: 'Export Health Report',
-              onPressed: () {
-                // In a real app, this would export the health report
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: TextWidget(
-                      text: 'Health report export functionality would be implemented here',
-                      fontSize: 14,
-                      color: textOnPrimary,
-                    ),
-                    backgroundColor: primary,
-                  ),
-                );
-              },
+              onPressed: _showExportOptionsDialog,
               icon: const Icon(Icons.download, color: Colors.white),
             ),
           ),
@@ -224,7 +372,7 @@ class TrendChartPainter extends CustomPainter {
     for (int i = 0; i <= 5; i++) {
       final double y = 20 + (chartHeight / 5) * i;
       canvas.drawLine(Offset(20, y), Offset(size.width - 20, y), gridPaint);
-      
+
       // Draw labels
       final label = ((maxVal - (i * (maxVal - minVal) ~/ 5))).toString();
       textPainter.text = TextSpan(
@@ -239,16 +387,19 @@ class TrendChartPainter extends CustomPainter {
     Path trendPath = Path();
     for (int i = 0; i < data.length; i++) {
       final double x = 20 + i * pointSpacing;
-      final double y = 20 + chartHeight - ((data[i]['score'] - minVal) / (maxVal - minVal)) * chartHeight;
-      
+      final double y = 20 +
+          chartHeight -
+          ((data[i]['score'] - minVal) / (maxVal - minVal)) * chartHeight;
+
       if (i == 0) {
         trendPath.moveTo(x, y);
       } else {
         trendPath.lineTo(x, y);
       }
-      
+
       // Draw point
-      canvas.drawCircle(Offset(x, y), 4, trendPaint..style = PaintingStyle.fill);
+      canvas.drawCircle(
+          Offset(x, y), 4, trendPaint..style = PaintingStyle.fill);
     }
     canvas.drawPath(trendPath, trendPaint..style = PaintingStyle.stroke);
 
@@ -260,7 +411,8 @@ class TrendChartPainter extends CustomPainter {
         style: const TextStyle(color: Colors.grey, fontSize: 10),
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(x - textPainter.width / 2, size.height - 20));
+      textPainter.paint(
+          canvas, Offset(x - textPainter.width / 2, size.height - 20));
     }
 
     // Draw Y-axis label

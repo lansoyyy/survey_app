@@ -20,6 +20,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return AppBar(
       backgroundColor: primary,
+      automaticallyImplyLeading: showBackButton,
       leading: showBackButton
           ? IconButton(
               icon: const Icon(Icons.arrow_back, color: textOnPrimary),

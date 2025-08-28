@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "524819277974",
+    "project_id": "bantaybp-bc1ae",
+    "storage_bucket": "bantaybp-bc1ae.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:524819277974:android:76abe6cee0c015bc04fab7",
+        "android_client_info": {
+          "package_name": "com.example.survey_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFsuUIrmLQrnYbosqYWtmc5MM7M_wajwQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

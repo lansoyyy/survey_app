@@ -13,9 +13,9 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Navigate to user home screen after 2 seconds
+    // Navigate to user login screen after 2 seconds
     Future.delayed(const Duration(seconds: 2), () {
-      Navigator.pushReplacementNamed(context, '/user/home');
+      Navigator.pushReplacementNamed(context, '/user/login');
     });
   }
 

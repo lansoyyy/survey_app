@@ -299,27 +299,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 24),
-          // Report generation
-          Center(
-            child: ButtonWidget(
-              label: 'Generate Report',
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: TextWidget(
-                      text:
-                          'Report generation functionality would be implemented here',
-                      fontSize: 14,
-                      color: textOnPrimary,
-                    ),
-                    backgroundColor: primary,
-                  ),
-                );
-              },
-              icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
-            ),
-          ),
+          const SizedBox(height: 20),
         ],
       ),
     );

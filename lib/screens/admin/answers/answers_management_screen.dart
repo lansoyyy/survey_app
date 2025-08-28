@@ -4,6 +4,10 @@ import 'package:survey_app/models/user_profile.dart';
 import 'package:survey_app/utils/colors.dart';
 import 'package:survey_app/widgets/button_widget.dart';
 import 'package:survey_app/widgets/text_widget.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 class AnswersManagementScreen extends StatefulWidget {
   const AnswersManagementScreen({super.key});
@@ -199,6 +203,145 @@ class _AnswersManagementScreenState extends State<AnswersManagementScreen> {
     }
   }
 
+  // Export data to PDF
+  void _exportDataToPdf() async {
+    // Show progress dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: primary),
+              const SizedBox(height: 20),
+              TextWidget(
+                text: 'Generating PDF Report...',
+                fontSize: 16,
+                color: textPrimary,
+                fontFamily: 'Bold',
+              ),
+              const SizedBox(height: 8),
+              TextWidget(
+                text: 'Please wait while we prepare your data report',
+                fontSize: 14,
+                color: textLight,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    try {
+      // Create a new PDF document
+      final pdf = pw.Document();
+
+      // Add a page to the PDF
+      pdf.addPage(
+        pw.Page(
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Header(
+                  level: 0,
+                  child: pw.Text(
+                    'Survey Responses Report',
+                    style: pw.TextStyle(
+                      fontSize: 24,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text(
+                  'Generated on: ${DateTime.now().toString().split(' ')[0]}',
+                  style: const pw.TextStyle(fontSize: 14),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text(
+                  'Total Responses: ${_filteredResponses.length}',
+                  style: const pw.TextStyle(fontSize: 14),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Table.fromTextArray(
+                  headers: [
+                    'User',
+                    'Email',
+                    'Submitted Date',
+                    'Risk Score',
+                    'Status',
+                  ],
+                  data: _filteredResponses.map((response) {
+                    final user = _users[response.userId];
+                    return [
+                      user?.name ?? 'Unknown',
+                      user?.email ?? 'Unknown',
+                      '${response.submittedAt.day}/${response.submittedAt.month}/${response.submittedAt.year}',
+                      response.riskScore.toStringAsFixed(1),
+                      response.completionStatus.capitalize(),
+                    ];
+                  }).toList(),
+                  headerStyle: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.white,
+                  ),
+                  headerDecoration: const pw.BoxDecoration(
+                    color: PdfColors.blue800,
+                  ),
+                  cellAlignment: pw.Alignment.centerLeft,
+                  cellStyle: const pw.TextStyle(
+                    fontSize: 10,
+                  ),
+                  border: pw.TableBorder.all(),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+
+      // Save the PDF to a file
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/survey_responses_report.pdf');
+      await file.writeAsBytes(await pdf.save());
+
+      // Close progress dialog
+      Navigator.of(context).pop();
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: TextWidget(
+            text: 'PDF report generated successfully! Saved to ${file.path}',
+            fontSize: 14,
+            color: textOnPrimary,
+          ),
+          backgroundColor: healthGreen,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } catch (e) {
+      // Close progress dialog
+      Navigator.of(context).pop();
+
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: TextWidget(
+            text: 'Failed to generate PDF report: $e',
+            fontSize: 14,
+            color: textOnPrimary,
+          ),
+          backgroundColor: healthRed,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+  }
+
   Color _getRiskColor(double riskScore) {
     if (riskScore <= 20) return healthGreen; // Normal
     if (riskScore <= 40) return healthYellow; // Elevated
@@ -325,18 +468,7 @@ class _AnswersManagementScreenState extends State<AnswersManagementScreen> {
             children: [
               ButtonWidget(
                 label: 'Export Data',
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: TextWidget(
-                        text: 'Export functionality would be implemented here',
-                        fontSize: 14,
-                        color: textOnPrimary,
-                      ),
-                      backgroundColor: primary,
-                    ),
-                  );
-                },
+                onPressed: _exportDataToPdf,
                 icon: const Icon(Icons.download, color: Colors.white),
                 height: 40,
               ),

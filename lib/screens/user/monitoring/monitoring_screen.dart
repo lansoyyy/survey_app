@@ -59,6 +59,166 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     {'date': 'Sun', 'systolic': 120, 'diastolic': 80},
   ];
 
+  // Controllers for the new reading form
+  final TextEditingController _systolicController = TextEditingController();
+  final TextEditingController _diastolicController = TextEditingController();
+  final TextEditingController _heartRateController = TextEditingController();
+  final TextEditingController _weightController = TextEditingController();
+
+  // Show dialog for adding new reading
+  void _showAddReadingDialog() {
+    _systolicController.clear();
+    _diastolicController.clear();
+    _heartRateController.clear();
+    _weightController.clear();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: TextWidget(
+            text: 'Add New Reading',
+            fontSize: 20,
+            color: textPrimary,
+            fontFamily: 'Bold',
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildTextField(_systolicController, 'Systolic (mmHg)',
+                    Icons.monitor_heart),
+                const SizedBox(height: 16),
+                _buildTextField(_diastolicController, 'Diastolic (mmHg)',
+                    Icons.monitor_heart_outlined),
+                const SizedBox(height: 16),
+                _buildTextField(
+                    _heartRateController, 'Heart Rate (bpm)', Icons.favorite),
+                const SizedBox(height: 16),
+                _buildTextField(
+                    _weightController, 'Weight (kg)', Icons.monitor_weight),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: TextWidget(
+                text: 'Cancel',
+                fontSize: 16,
+                color: textLight,
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // In a real app, you would save the data here
+                // For now, we'll just show a confirmation
+                Navigator.of(context).pop();
+                _saveNewReading();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: TextWidget(
+                text: 'Save',
+                fontSize: 16,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Build a text field for the dialog
+  Widget _buildTextField(
+      TextEditingController controller, String label, IconData icon) {
+    return TextField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: primary),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: primary),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: primary, width: 2),
+        ),
+      ),
+    );
+  }
+
+  // Save the new reading (in a real app, this would save to a database)
+  void _saveNewReading() {
+    // Get values from controllers
+    String systolic = _systolicController.text;
+    String diastolic = _diastolicController.text;
+    String heartRate = _heartRateController.text;
+    String weight = _weightController.text;
+
+    // Validate inputs
+    if (systolic.isEmpty || diastolic.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: TextWidget(
+            text: 'Please enter at least systolic and diastolic values',
+            fontSize: 14,
+            color: textOnPrimary,
+          ),
+          backgroundColor: healthRed,
+        ),
+      );
+      return;
+    }
+
+    // In a real app, you would save this data to a database or send to a server
+    // For now, we'll just show a success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: TextWidget(
+          text: 'New reading saved successfully!',
+          fontSize: 14,
+          color: textOnPrimary,
+        ),
+        backgroundColor: healthGreen,
+      ),
+    );
+
+    // Update the chart data with the new reading
+    setState(() {
+      // Add the new reading to the chart data
+      // In a real app, you would get the actual date
+      _bpReadings.add({
+        'date': 'Today',
+        'systolic': int.parse(systolic),
+        'diastolic': int.parse(diastolic),
+      });
+
+      // Update the health metrics display
+      _healthMetrics[0]['value'] = '$systolic/$diastolic';
+      _healthMetrics[1]['value'] =
+          heartRate.isEmpty ? _healthMetrics[1]['value'] : heartRate;
+      _healthMetrics[2]['value'] =
+          weight.isEmpty ? _healthMetrics[2]['value'] : weight;
+    });
+  }
+
+  @override
+  void dispose() {
+    _systolicController.dispose();
+    _diastolicController.dispose();
+    _heartRateController.dispose();
+    _weightController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -206,20 +366,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
           Center(
             child: ButtonWidget(
               label: 'Add New Reading',
-              onPressed: () {
-                // In a real app, this would open a dialog to add a new reading
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: TextWidget(
-                      text:
-                          'Add new reading functionality would be implemented here',
-                      fontSize: 14,
-                      color: textOnPrimary,
-                    ),
-                    backgroundColor: primary,
-                  ),
-                );
-              },
+              onPressed: _showAddReadingDialog,
               icon: const Icon(Icons.add, color: Colors.white),
             ),
           ),

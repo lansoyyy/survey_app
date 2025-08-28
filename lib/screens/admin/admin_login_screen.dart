@@ -73,7 +73,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your email';
                     }
-                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                        .hasMatch(value)) {
                       return 'Please enter a valid email';
                     }
                     return null;
@@ -102,28 +103,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   onPressed: _login,
                   width: double.infinity,
                 ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () {
-                    // In a real app, this would navigate to a forgot password screen
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: TextWidget(
-                          text: 'Forgot password functionality would be implemented here',
-                          fontSize: 14,
-                          color: textOnPrimary,
-                        ),
-                        backgroundColor: primary,
-                      ),
-                    );
-                  },
-                  child: TextWidget(
-                    text: 'Forgot Password?',
-                    fontSize: 14,
-                    color: primary,
-                    fontFamily: 'Medium',
-                  ),
-                ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
