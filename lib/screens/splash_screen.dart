@@ -1,4 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:survey_app/services/auth_service.dart';
 import 'package:survey_app/utils/colors.dart';
 import 'package:survey_app/widgets/text_widget.dart';
 
@@ -10,12 +12,43 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  final AuthService _authService = AuthService();
+
   @override
   void initState() {
     super.initState();
-    // Navigate to user login screen after 2 seconds
+    // Check authentication state and navigate appropriately
+    _checkAuthState();
+  }
+
+  void _checkAuthState() {
+    // Add a small delay for better UX
     Future.delayed(const Duration(seconds: 2), () {
-      Navigator.pushReplacementNamed(context, '/user/login');
+      // Check if user is logged in
+      if (_authService.currentUser != null) {
+        // Check if user is admin
+        _authService.isAdmin(_authService.currentUser!.uid).then((isAdmin) {
+          if (isAdmin) {
+            if (mounted) {
+              Navigator.pushReplacementNamed(context, '/admin/home');
+            }
+          } else {
+            if (mounted) {
+              Navigator.pushReplacementNamed(context, '/user/home');
+            }
+          }
+        }).catchError((error) {
+          // If there's an error checking admin status, default to user home
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, '/user/home');
+          }
+        });
+      } else {
+        // No user logged in, go to user login
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/user/login');
+        }
+      }
     });
   }
 

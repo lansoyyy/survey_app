@@ -1,9 +1,13 @@
 import 'dart:math' as math;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:survey_app/models/analytics_data.dart';
+import 'package:survey_app/services/auth_service.dart';
+import 'package:survey_app/services/admin_service.dart';
 import 'package:survey_app/utils/colors.dart';
 import 'package:survey_app/widgets/button_widget.dart';
 import 'package:survey_app/widgets/text_widget.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -13,295 +17,321 @@ class AnalyticsScreen extends StatefulWidget {
 }
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
-  // Sample analytics data
-  final AnalyticsData _analyticsData = AnalyticsData(
-    analyticsId: 'analytics_001',
-    startDate: DateTime(2023, 1, 1),
-    endDate: DateTime(2023, 6, 30),
-    totalUsers: 1240,
-    activeUsers: 876,
-    averageRiskScore: 42.3,
-    completionRate: 78.5,
-    demographicData: {
-      'gender': {'Male': 52, 'Female': 48},
-      'ageGroups': {
-        '18-30': 25,
-        '31-45': 35,
-        '46-60': 28,
-        '60+': 12,
-      },
-      'riskLevels': {
-        'Normal': 20,
-        'Elevated': 30,
-        'High': 25,
-        'Very High': 15,
-        'Critical': 10,
-      },
-    },
-  );
+  final AuthService _authService = AuthService();
+  final AdminService _adminService = AdminService();
+
+  AnalyticsData? _analyticsData;
+  bool _isLoading = true;
 
   String _selectedPeriod = 'monthly';
   String _selectedChart = 'users';
 
   @override
+  void initState() {
+    super.initState();
+    _loadAnalyticsData();
+  }
+
+  void _loadAnalyticsData() {
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Listen to analytics data stream with selected period
+    _adminService.getAnalyticsData(period: _selectedPeriod).listen((data) {
+      setState(() {
+        _analyticsData = data;
+        _isLoading = false;
+      });
+    }, onError: (error) {
+      if (mounted) {
+        Fluttertoast.showToast(
+          msg: 'Failed to load analytics data: $error',
+          backgroundColor: healthRed,
+          textColor: Colors.white,
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Dashboard metrics
-          TextWidget(
-            text: 'Dashboard Metrics',
-            fontSize: 20,
-            color: textPrimary,
-            fontFamily: 'Bold',
-          ),
-          const SizedBox(height: 16),
-          GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              _buildMetricCard(
-                'Total Users',
-                _analyticsData.totalUsers.toString(),
-                Icons.people,
-                primary,
-              ),
-              _buildMetricCard(
-                'Active Users',
-                _analyticsData.activeUsers.toString(),
-                Icons.person,
-                healthGreen,
-              ),
-              _buildMetricCard(
-                'Avg. Risk Score',
-                '${_analyticsData.averageRiskScore.toStringAsFixed(1)}',
-                Icons.monitor_heart,
-                accent,
-              ),
-              _buildMetricCard(
-                'Completion Rate',
-                '${_analyticsData.completionRate.toStringAsFixed(1)}%',
-                Icons.check_circle,
-                healthGreen,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          // Chart controls
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: surface,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      // Period selector
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          decoration: const InputDecoration(
-                            labelText: 'Period',
-                            border: OutlineInputBorder(
-                              borderRadius:
-                                  BorderRadius.all(Radius.circular(8)),
-                            ),
-                          ),
-                          value: _selectedPeriod,
-                          items: const [
-                            DropdownMenuItem(
-                                value: 'daily', child: Text('Daily')),
-                            DropdownMenuItem(
-                                value: 'weekly', child: Text('Weekly')),
-                            DropdownMenuItem(
-                                value: 'monthly', child: Text('Monthly')),
-                            DropdownMenuItem(
-                                value: 'yearly', child: Text('Yearly')),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedPeriod = value ?? 'monthly';
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      // Chart type selector
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          decoration: const InputDecoration(
-                            labelText: 'Chart Type',
-                            border: OutlineInputBorder(
-                              borderRadius:
-                                  BorderRadius.all(Radius.circular(8)),
-                            ),
-                          ),
-                          value: _selectedChart,
-                          items: const [
-                            DropdownMenuItem(
-                                value: 'users', child: Text('User\nGrowth')),
-                            DropdownMenuItem(
-                                value: 'risk',
-                                child: Text('Risk\nDistribution')),
-                            DropdownMenuItem(
-                                value: 'completion',
-                                child: Text('Completion\nRate')),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedChart = value ?? 'users';
-                            });
-                          },
-                        ),
-                      ),
-                    ],
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: primary))
+          : _analyticsData == null
+              ? Center(
+                  child: TextWidget(
+                    text: 'No analytics data available',
+                    fontSize: 16,
+                    color: textLight,
                   ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          // Chart visualization
-          TextWidget(
-            text: 'Data Visualization',
-            fontSize: 20,
-            color: textPrimary,
-            fontFamily: 'Bold',
-          ),
-          const SizedBox(height: 16),
-          Container(
-            height: 300,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: grey),
-            ),
-            child: _buildChart(),
-          ),
-          const SizedBox(height: 24),
-          // Demographics section
-          TextWidget(
-            text: 'Demographics',
-            fontSize: 20,
-            color: textPrimary,
-            fontFamily: 'Bold',
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: surface,
-                      borderRadius: BorderRadius.circular(12),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Dashboard metrics
+                    TextWidget(
+                      text: 'Dashboard Metrics',
+                      fontSize: 20,
+                      color: textPrimary,
+                      fontFamily: 'Bold',
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 16),
+                    GridView.count(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
                       children: [
-                        TextWidget(
-                          text: 'Gender Distribution',
-                          fontSize: 16,
-                          color: textPrimary,
-                          fontFamily: 'Bold',
-                        ),
-                        const SizedBox(height: 16),
-                        _buildPieChart(
-                          _analyticsData.demographicData['gender']
-                              as Map<String, dynamic>,
-                          [primary, accent],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        TextWidget(
-                          text: 'Age Groups',
-                          fontSize: 16,
-                          color: textPrimary,
-                          fontFamily: 'Bold',
-                        ),
-                        const SizedBox(height: 16),
-                        _buildBarChart(
-                          _analyticsData.demographicData['ageGroups']
-                              as Map<String, dynamic>,
+                        _buildMetricCard(
+                          'Total Users',
+                          _analyticsData!.totalUsers.toString(),
+                          Icons.people,
                           primary,
                         ),
+                        _buildMetricCard(
+                          'Active Users',
+                          _analyticsData!.activeUsers.toString(),
+                          Icons.person,
+                          healthGreen,
+                        ),
+                        _buildMetricCard(
+                          'Avg. Risk Score',
+                          '${_analyticsData!.averageRiskScore.toStringAsFixed(1)}',
+                          Icons.monitor_heart,
+                          accent,
+                        ),
+                        _buildMetricCard(
+                          'Completion Rate',
+                          '${_analyticsData!.completionRate.toStringAsFixed(1)}%',
+                          Icons.check_circle,
+                          healthGreen,
+                        ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 24),
+                    // Chart controls
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: surface,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                // Period selector
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    decoration: const InputDecoration(
+                                      labelText: 'Period',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.all(
+                                            Radius.circular(8)),
+                                      ),
+                                    ),
+                                    value: _selectedPeriod,
+                                    items: const [
+                                      DropdownMenuItem(
+                                          value: 'daily', child: Text('Daily')),
+                                      DropdownMenuItem(
+                                          value: 'weekly',
+                                          child: Text('Weekly')),
+                                      DropdownMenuItem(
+                                          value: 'monthly',
+                                          child: Text('Monthly')),
+                                      DropdownMenuItem(
+                                          value: 'yearly',
+                                          child: Text('Yearly')),
+                                    ],
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _selectedPeriod = value ?? 'monthly';
+                                      });
+                                      // Reload analytics data with new period
+                                      _loadAnalyticsData();
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                // Chart type selector
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    decoration: const InputDecoration(
+                                      labelText: 'Chart Type',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.all(
+                                            Radius.circular(8)),
+                                      ),
+                                    ),
+                                    value: _selectedChart,
+                                    items: const [
+                                      DropdownMenuItem(
+                                          value: 'users',
+                                          child: Text('User\nGrowth')),
+                                      DropdownMenuItem(
+                                          value: 'risk',
+                                          child: Text('Risk\nDistribution')),
+                                      DropdownMenuItem(
+                                          value: 'completion',
+                                          child: Text('Completion\nRate')),
+                                    ],
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _selectedChart = value ?? 'users';
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Chart visualization
+                    TextWidget(
+                      text: 'Data Visualization',
+                      fontSize: 20,
+                      color: textPrimary,
+                      fontFamily: 'Bold',
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      height: 300,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: grey),
+                      ),
+                      child: _buildChart(),
+                    ),
+                    const SizedBox(height: 24),
+                    // Demographics section
+                    TextWidget(
+                      text: 'Demographics',
+                      fontSize: 20,
+                      color: textPrimary,
+                      fontFamily: 'Bold',
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: surface,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  TextWidget(
+                                    text: 'Gender Distribution',
+                                    fontSize: 16,
+                                    color: textPrimary,
+                                    fontFamily: 'Bold',
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _buildPieChart(
+                                    _analyticsData!.demographicData['gender']
+                                        as Map<String, dynamic>,
+                                    [primary, accent],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: surface,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  TextWidget(
+                                    text: 'Age Groups',
+                                    fontSize: 16,
+                                    color: textPrimary,
+                                    fontFamily: 'Bold',
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _buildBarChart(
+                                    _analyticsData!.demographicData['ageGroups']
+                                        as Map<String, dynamic>,
+                                    primary,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    // Risk level distribution
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: surface,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextWidget(
+                              text: 'Risk Level Distribution',
+                              fontSize: 16,
+                              color: textPrimary,
+                              fontFamily: 'Bold',
+                            ),
+                            const SizedBox(height: 16),
+                            _buildRiskDistributionChart(
+                              _analyticsData!.demographicData['riskLevels']
+                                  as Map<String, dynamic>,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          // Risk level distribution
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: surface,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextWidget(
-                    text: 'Risk Level Distribution',
-                    fontSize: 16,
-                    color: textPrimary,
-                    fontFamily: 'Bold',
-                  ),
-                  const SizedBox(height: 16),
-                  _buildRiskDistributionChart(
-                    _analyticsData.demographicData['riskLevels']
-                        as Map<String, dynamic>,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
     );
   }
 
@@ -342,20 +372,32 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   Widget _buildChart() {
+    // Get time-based data from analytics data
+    final timeBasedData = _analyticsData?.demographicData['timeBasedData']
+            as Map<String, dynamic>? ??
+        {};
+
     switch (_selectedChart) {
       case 'users':
+        final userGrowthData =
+            timeBasedData['userGrowth'] as List<dynamic>? ?? [];
         return CustomPaint(
-          painter: UserGrowthChartPainter(),
+          painter: UserGrowthChartPainter(chartData: userGrowthData),
           size: const Size(double.infinity, 300),
         );
       case 'risk':
+        final riskDistributionData =
+            timeBasedData['riskDistribution'] as List<dynamic>? ?? [];
         return CustomPaint(
-          painter: RiskDistributionChartPainter(),
+          painter:
+              RiskDistributionChartPainter(chartData: riskDistributionData),
           size: const Size(double.infinity, 300),
         );
       case 'completion':
+        final completionRateData =
+            timeBasedData['completionRate'] as List<dynamic>? ?? [];
         return CustomPaint(
-          painter: CompletionRateChartPainter(),
+          painter: CompletionRateChartPainter(chartData: completionRateData),
           size: const Size(double.infinity, 300),
         );
       default:
@@ -392,6 +434,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 }
 
 class UserGrowthChartPainter extends CustomPainter {
+  final List<dynamic> chartData;
+
+  UserGrowthChartPainter({required this.chartData});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
@@ -403,23 +449,45 @@ class UserGrowthChartPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     );
 
-    // Sample data points for user growth
-    final List<Map<String, dynamic>> data = [
-      {'month': 'Jan', 'users': 200},
-      {'month': 'Feb', 'users': 350},
-      {'month': 'Mar', 'users': 500},
-      {'month': 'Apr', 'users': 680},
-      {'month': 'May', 'users': 920},
-      {'month': 'Jun', 'users': 1240},
-    ];
-
-    final double chartWidth = size.width - 60;
-    final double chartHeight = size.height - 60;
-    final double pointSpacing = chartWidth / (data.length - 1);
+    // Use actual data instead of sample data
+    final List<Map<String, dynamic>> data = [];
+    if (chartData.isNotEmpty) {
+      for (var item in chartData) {
+        if (item is Map<String, dynamic>) {
+          data.add(item);
+        }
+      }
+    } else {
+      // Handle empty data case
+      textPainter.text = const TextSpan(
+        text: 'No user growth data available',
+        style: TextStyle(color: Colors.grey, fontSize: 12),
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(size.width / 2 - textPainter.width / 2,
+            size.height / 2 - textPainter.height / 2),
+      );
+      return;
+    }
 
     // Find min and max values for scaling
     int minVal = 0;
-    int maxVal = 1400;
+    int maxVal = 0;
+    if (data.isNotEmpty) {
+      maxVal = data
+          .map((d) => d['users'] as int? ?? 0)
+          .reduce((a, b) => a > b ? a : b);
+      // Add some padding to the top
+      maxVal = (maxVal * 1.1).toInt();
+      if (maxVal == 0) maxVal = 10; // Minimum scale
+    }
+
+    final double chartWidth = size.width - 60;
+    final double chartHeight = size.height - 60;
+    final double pointSpacing =
+        data.length > 1 ? chartWidth / (data.length - 1) : 0;
 
     // Draw grid lines
     final gridPaint = Paint()
@@ -438,9 +506,10 @@ class UserGrowthChartPainter extends CustomPainter {
 
     for (int i = 0; i < data.length; i++) {
       final double x = 30 + i * pointSpacing;
+      final int userCount = data[i]['users'] as int? ?? 0;
       final double y = 30 +
           chartHeight -
-          ((data[i]['users'] - minVal) / (maxVal - minVal)) * chartHeight;
+          ((userCount - minVal) / (maxVal - minVal)) * chartHeight;
 
       if (i == 0) {
         trendPath.moveTo(x, y);
@@ -454,11 +523,12 @@ class UserGrowthChartPainter extends CustomPainter {
     }
     canvas.drawPath(trendPath, trendPaint..style = PaintingStyle.stroke);
 
-    // Draw labels for months
+    // Draw labels for periods
     for (int i = 0; i < data.length; i++) {
       final double x = 30 + i * pointSpacing;
+      final String period = data[i]['period'] as String? ?? '';
       textPainter.text = TextSpan(
-        text: data[i]['month'],
+        text: period,
         style: const TextStyle(color: Colors.grey, fontSize: 10),
       );
       textPainter.layout();
@@ -469,9 +539,9 @@ class UserGrowthChartPainter extends CustomPainter {
     // Draw Y-axis labels
     for (int i = 0; i <= 5; i++) {
       final double y = 30 + (chartHeight / 5) * i;
-      final label = ((maxVal - (i * (maxVal - minVal) ~/ 5))).toString();
+      final int labelValue = minVal + ((maxVal - minVal) ~/ 5) * (5 - i);
       textPainter.text = TextSpan(
-        text: label,
+        text: labelValue.toString(),
         style: const TextStyle(color: Colors.grey, fontSize: 10),
       );
       textPainter.layout();
@@ -493,6 +563,10 @@ class UserGrowthChartPainter extends CustomPainter {
 }
 
 class RiskDistributionChartPainter extends CustomPainter {
+  final List<dynamic> chartData;
+
+  RiskDistributionChartPainter({required this.chartData});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
@@ -504,55 +578,33 @@ class RiskDistributionChartPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     );
 
-    // Sample data points for risk distribution
-    final List<Map<String, dynamic>> data = [
-      {
-        'month': 'Jan',
-        'normal': 40,
-        'elevated': 30,
-        'high': 20,
-        'veryHigh': 10
-      },
-      {
-        'month': 'Feb',
-        'normal': 35,
-        'elevated': 35,
-        'high': 20,
-        'veryHigh': 10
-      },
-      {
-        'month': 'Mar',
-        'normal': 30,
-        'elevated': 35,
-        'high': 25,
-        'veryHigh': 10
-      },
-      {
-        'month': 'Apr',
-        'normal': 25,
-        'elevated': 30,
-        'high': 30,
-        'veryHigh': 15
-      },
-      {
-        'month': 'May',
-        'normal': 20,
-        'elevated': 25,
-        'high': 35,
-        'veryHigh': 20
-      },
-      {
-        'month': 'Jun',
-        'normal': 15,
-        'elevated': 20,
-        'high': 40,
-        'veryHigh': 25
-      },
-    ];
+    // Use actual data instead of sample data
+    final List<Map<String, dynamic>> data = [];
+    if (chartData.isNotEmpty) {
+      for (var item in chartData) {
+        if (item is Map<String, dynamic>) {
+          data.add(item);
+        }
+      }
+    } else {
+      // Handle empty data case
+      textPainter.text = const TextSpan(
+        text: 'No risk distribution data available',
+        style: TextStyle(color: Colors.grey, fontSize: 12),
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(size.width / 2 - textPainter.width / 2,
+            size.height / 2 - textPainter.height / 2),
+      );
+      return;
+    }
 
     final double chartWidth = size.width - 60;
     final double chartHeight = size.height - 60;
-    final double pointSpacing = chartWidth / (data.length - 1);
+    final double pointSpacing =
+        data.length > 1 ? chartWidth / (data.length - 1) : 0;
 
     // Draw grid lines
     final gridPaint = Paint()
@@ -569,7 +621,8 @@ class RiskDistributionChartPainter extends CustomPainter {
     final normalPaint = paint..color = healthGreen;
     final elevatedPaint = paint..color = healthYellow;
     final highPaint = paint..color = accent;
-    final veryHighPaint = paint..color = healthRed;
+    final veryHighPaint = paint..color = Colors.orange;
+    final criticalPaint = paint..color = healthRed;
 
     // Draw data for each risk level
     _drawRiskLine(
@@ -580,12 +633,15 @@ class RiskDistributionChartPainter extends CustomPainter {
         canvas, data, pointSpacing, chartHeight, 30, 'high', highPaint);
     _drawRiskLine(
         canvas, data, pointSpacing, chartHeight, 30, 'veryHigh', veryHighPaint);
+    _drawRiskLine(
+        canvas, data, pointSpacing, chartHeight, 30, 'critical', criticalPaint);
 
-    // Draw labels for months
+    // Draw labels for periods
     for (int i = 0; i < data.length; i++) {
       final double x = 30 + i * pointSpacing;
+      final String period = data[i]['period'] as String? ?? '';
       textPainter.text = TextSpan(
-        text: data[i]['month'],
+        text: period,
         style: const TextStyle(color: Colors.grey, fontSize: 10),
       );
       textPainter.layout();
@@ -598,7 +654,8 @@ class RiskDistributionChartPainter extends CustomPainter {
     _drawLegendItem(canvas, healthGreen, 'Normal', 30, legendY);
     _drawLegendItem(canvas, healthYellow, 'Elevated', 100, legendY);
     _drawLegendItem(canvas, accent, 'High', 190, legendY);
-    _drawLegendItem(canvas, healthRed, 'Very High', 260, legendY);
+    _drawLegendItem(canvas, Colors.orange, 'Very High', 260, legendY);
+    _drawLegendItem(canvas, healthRed, 'Critical', 340, legendY);
 
     // Draw title
     textPainter.text = const TextSpan(
@@ -622,9 +679,13 @@ class RiskDistributionChartPainter extends CustomPainter {
 
     for (int i = 0; i < data.length; i++) {
       final double x = 30 + i * pointSpacing;
-      // For simplicity, we're using a fixed max value of 100
+      // Get the count for this risk level and normalize to 0-100 scale
+      final int count = data[i][riskLevel] as int? ?? 0;
+      // For visualization, we'll use a fixed max value for consistent scaling
+      final int maxCount = 50; // Adjust based on expected max count
+      final double normalizedValue = (count / maxCount) * 100;
       final double y =
-          topPadding + chartHeight - (data[i][riskLevel] / 100) * chartHeight;
+          topPadding + chartHeight - (normalizedValue / 100) * chartHeight;
 
       if (i == 0) {
         path.moveTo(x, y);
@@ -663,6 +724,10 @@ class RiskDistributionChartPainter extends CustomPainter {
 }
 
 class CompletionRateChartPainter extends CustomPainter {
+  final List<dynamic> chartData;
+
+  CompletionRateChartPainter({required this.chartData});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
@@ -674,19 +739,33 @@ class CompletionRateChartPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     );
 
-    // Sample data points for completion rate
-    final List<Map<String, dynamic>> data = [
-      {'month': 'Jan', 'rate': 65},
-      {'month': 'Feb', 'rate': 70},
-      {'month': 'Mar', 'rate': 72},
-      {'month': 'Apr', 'rate': 75},
-      {'month': 'May', 'rate': 78},
-      {'month': 'Jun', 'rate': 82},
-    ];
+    // Use actual data instead of sample data
+    final List<Map<String, dynamic>> data = [];
+    if (chartData.isNotEmpty) {
+      for (var item in chartData) {
+        if (item is Map<String, dynamic>) {
+          data.add(item);
+        }
+      }
+    } else {
+      // Handle empty data case
+      textPainter.text = const TextSpan(
+        text: 'No completion rate data available',
+        style: TextStyle(color: Colors.grey, fontSize: 12),
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(size.width / 2 - textPainter.width / 2,
+            size.height / 2 - textPainter.height / 2),
+      );
+      return;
+    }
 
     final double chartWidth = size.width - 60;
     final double chartHeight = size.height - 60;
-    final double pointSpacing = chartWidth / (data.length - 1);
+    final double pointSpacing =
+        data.length > 1 ? chartWidth / (data.length - 1) : 0;
 
     // Draw grid lines
     final gridPaint = Paint()
@@ -705,8 +784,9 @@ class CompletionRateChartPainter extends CustomPainter {
 
     for (int i = 0; i < data.length; i++) {
       final double x = 30 + i * pointSpacing;
-      // For completion rate, max value is 100
-      final double y = 30 + chartHeight - (data[i]['rate'] / 100) * chartHeight;
+      // Get completion rate (0-100 scale)
+      final double rate = data[i]['rate'] as double? ?? 0.0;
+      final double y = 30 + chartHeight - (rate / 100) * chartHeight;
 
       if (i == 0) {
         trendPath.moveTo(x, y);
@@ -720,11 +800,12 @@ class CompletionRateChartPainter extends CustomPainter {
     }
     canvas.drawPath(trendPath, trendPaint..style = PaintingStyle.stroke);
 
-    // Draw labels for months
+    // Draw labels for periods
     for (int i = 0; i < data.length; i++) {
       final double x = 30 + i * pointSpacing;
+      final String period = data[i]['period'] as String? ?? '';
       textPainter.text = TextSpan(
-        text: data[i]['month'],
+        text: period,
         style: const TextStyle(color: Colors.grey, fontSize: 10),
       );
       textPainter.layout();
@@ -735,9 +816,9 @@ class CompletionRateChartPainter extends CustomPainter {
     // Draw Y-axis labels (0-100%)
     for (int i = 0; i <= 5; i++) {
       final double y = 30 + (chartHeight / 5) * i;
-      final label = '${i * 20}%';
+      final int label = i * 20;
       textPainter.text = TextSpan(
-        text: label,
+        text: '$label%',
         style: const TextStyle(color: Colors.grey, fontSize: 10),
       );
       textPainter.layout();
@@ -902,11 +983,30 @@ class RiskDistributionBarChartPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     );
 
+    // Handle empty data case
+    if (data.isEmpty) {
+      textPainter.text = const TextSpan(
+        text: 'No risk data available',
+        style: TextStyle(color: Colors.grey, fontSize: 12),
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(size.width / 2 - textPainter.width / 2,
+            size.height / 2 - textPainter.height / 2),
+      );
+      return;
+    }
+
     // Find max value for scaling
-    int maxValue = 0;
+    double maxValue = 0;
     data.values.forEach((value) {
-      if (value > maxValue) maxValue = value;
+      final numValue = value is num ? value.toDouble() : 0.0;
+      if (numValue > maxValue) maxValue = numValue;
     });
+
+    // Ensure we have a minimum maxValue to avoid division by zero
+    if (maxValue == 0) maxValue = 1;
 
     final double barHeight = 20;
     final double spacing = 10;
@@ -923,12 +1023,13 @@ class RiskDistributionBarChartPainter extends CustomPainter {
 
     int index = 0;
     data.entries.toList().asMap().forEach((i, entry) {
-      final double barWidth = (entry.value / maxValue) * (size.width - 120);
+      final double value = entry.value is num ? entry.value.toDouble() : 0.0;
+      final double barWidth = (value / maxValue) * (size.width - 120);
       final double y = startY + index * (barHeight + spacing);
 
       // Draw bar
       final paint = Paint()
-        ..color = colors[index]
+        ..color = colors[index % colors.length]
         ..style = PaintingStyle.fill;
 
       canvas.drawRect(
@@ -944,12 +1045,12 @@ class RiskDistributionBarChartPainter extends CustomPainter {
       textPainter.layout();
       textPainter.paint(
         canvas,
-        const Offset(0, 0),
+        Offset(0, y + barHeight / 2 - textPainter.height / 2),
       );
 
       // Draw value at the end of bar
       textPainter.text = TextSpan(
-        text: '${entry.value}%',
+        text: '${value.toStringAsFixed(1)}%',
         style: const TextStyle(color: Colors.grey, fontSize: 12),
       );
       textPainter.layout();

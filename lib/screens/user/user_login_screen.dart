@@ -1,8 +1,11 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:survey_app/services/auth_service.dart';
 import 'package:survey_app/utils/colors.dart';
 import 'package:survey_app/widgets/button_widget.dart';
 import 'package:survey_app/widgets/text_widget.dart';
 import 'package:survey_app/widgets/textfield_widget.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class UserLoginScreen extends StatefulWidget {
   const UserLoginScreen({super.key});
@@ -15,8 +18,10 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final AuthService _authService = AuthService();
 
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -31,11 +36,58 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
     });
   }
 
-  void _login() {
+  void _login() async {
     if (_formKey.currentState!.validate()) {
-      // In a real app, you would authenticate the user here
-      // For now, we'll just navigate to the user home screen
-      Navigator.pushReplacementNamed(context, '/user/home');
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        final UserCredential userCredential = await _authService.login(
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
+
+        if (userCredential.user != null) {
+          // Navigate to user home screen
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, '/user/home');
+          }
+        }
+      } on FirebaseAuthException catch (e) {
+        String message = 'Authentication failed';
+        if (e.code == 'user-not-found') {
+          message = 'No user found with this email';
+        } else if (e.code == 'wrong-password') {
+          message = 'Incorrect password';
+        } else if (e.code == 'invalid-email') {
+          message = 'Invalid email address';
+        } else if (e.code == 'user-disabled') {
+          message = 'This account has been disabled';
+        }
+
+        if (mounted) {
+          Fluttertoast.showToast(
+            msg: message,
+            backgroundColor: healthRed,
+            textColor: Colors.white,
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          Fluttertoast.showToast(
+            msg: 'Login failed. Please try again.',
+            backgroundColor: healthRed,
+            textColor: Colors.white,
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -141,11 +193,14 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 // Login button
-                ButtonWidget(
-                  label: 'Login',
-                  onPressed: _login,
-                  width: double.infinity,
-                ),
+                _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: primary))
+                    : ButtonWidget(
+                        label: 'Login',
+                        onPressed: _login,
+                        width: double.infinity,
+                      ),
                 const SizedBox(height: 24),
                 // Signup link
                 Row(

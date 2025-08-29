@@ -1,8 +1,17 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:survey_app/services/auth_service.dart';
+import 'package:survey_app/services/user_service.dart';
+import 'package:survey_app/models/survey_response.dart';
 import 'package:survey_app/utils/colors.dart';
 import 'package:survey_app/widgets/text_widget.dart';
 import 'package:survey_app/widgets/analysis/risk_assessment_card.dart';
 import 'package:survey_app/widgets/button_widget.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({super.key});
@@ -12,45 +21,170 @@ class AnalysisScreen extends StatefulWidget {
 }
 
 class _AnalysisScreenState extends State<AnalysisScreen> {
-  // Sample recommendations based on risk level
-  final List<Map<String, dynamic>> _recommendations = [
-    {
-      'title': 'Dietary Changes',
-      'description': 'Reduce sodium intake to less than 2,300mg per day',
-      'priority': 'high',
-    },
-    {
-      'title': 'Regular Exercise',
-      'description': 'Engage in 30 minutes of moderate exercise 5 days a week',
-      'priority': 'high',
-    },
-    {
-      'title': 'Stress Management',
-      'description':
-          'Practice relaxation techniques like meditation or deep breathing',
-      'priority': 'medium',
-    },
-    {
-      'title': 'Regular Monitoring',
-      'description': 'Check your blood pressure at least once a week',
-      'priority': 'high',
-    },
-    {
-      'title': 'Adequate Sleep',
-      'description': 'Aim for 7-9 hours of quality sleep each night',
-      'priority': 'medium',
-    },
-  ];
+  final AuthService _authService = AuthService();
+  final UserService _userService = UserService();
+  
+  List<SurveyResponse> _surveyResponses = [];
+  List<Map<String, dynamic>> _recommendations = [];
+  List<Map<String, dynamic>> _trendData = [];
+  bool _isLoading = true;
 
-  // Sample trend data
-  final List<Map<String, dynamic>> _trendData = [
-    {'month': 'Jan', 'score': 45},
-    {'month': 'Feb', 'score': 42},
-    {'month': 'Mar', 'score': 38},
-    {'month': 'Apr', 'score': 35},
-    {'month': 'May', 'score': 32},
-    {'month': 'Jun', 'score': 30},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadSurveyData();
+  }
+
+  void _loadSurveyData() {
+    if (_authService.currentUser == null) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    // Listen to survey responses
+    _userService.getUserSurveyResponses(_authService.currentUser!.uid).listen((responses) {
+      setState(() {
+        _surveyResponses = responses;
+        _trendData = _convertToTrendData(responses);
+        _recommendations = _generateRecommendations(responses);
+        _isLoading = false;
+      });
+    }, onError: (error) {
+      if (mounted) {
+        Fluttertoast.showToast(
+          msg: 'Failed to load survey data',
+          backgroundColor: healthRed,
+          textColor: Colors.white,
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  List<Map<String, dynamic>> _convertToTrendData(List<SurveyResponse> responses) {
+    List<Map<String, dynamic>> trendData = [];
+    
+    // Take the last 6 responses for the trend chart
+    final recentResponses = responses.length > 6 ? responses.sublist(0, 6) : responses;
+    
+    for (int i = 0; i < recentResponses.length; i++) {
+      final response = recentResponses[i];
+      final month = _getMonthAbbreviation(response.submittedAt.month);
+      
+      trendData.add({
+        'month': month,
+        'score': response.riskScore.toInt(),
+      });
+    }
+    
+    return trendData;
+  }
+
+  String _getMonthAbbreviation(int month) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[month - 1];
+  }
+
+  List<Map<String, dynamic>> _generateRecommendations(List<SurveyResponse> responses) {
+    if (responses.isEmpty) {
+      return [
+        {
+          'title': 'Complete a Survey',
+          'description': 'Take the hypertension risk assessment survey to get personalized recommendations',
+          'priority': 'high',
+        },
+      ];
+    }
+    
+    final latestResponse = responses.first;
+    final riskScore = latestResponse.riskScore;
+    
+    List<Map<String, dynamic>> recommendations = [];
+    
+    if (riskScore >= 70) {
+      recommendations.addAll([
+        {
+          'title': 'Immediate Medical Attention',
+          'description': 'Your risk score is very high. Consult with a healthcare professional immediately',
+          'priority': 'high',
+        },
+        {
+          'title': 'Medication Compliance',
+          'description': 'If prescribed medication, ensure you take it as directed',
+          'priority': 'high',
+        },
+      ]);
+    } else if (riskScore >= 50) {
+      recommendations.addAll([
+        {
+          'title': 'Medical Consultation',
+          'description': 'Your risk score is high. Schedule an appointment with your doctor',
+          'priority': 'high',
+        },
+      ]);
+    } else if (riskScore >= 30) {
+      recommendations.addAll([
+        {
+          'title': 'Lifestyle Changes',
+          'description': 'Your risk score is elevated. Implement lifestyle modifications',
+          'priority': 'medium',
+        },
+      ]);
+    }
+    
+    // Add general recommendations
+    recommendations.addAll([
+      {
+        'title': 'Dietary Changes',
+        'description': 'Reduce sodium intake to less than 2,300mg per day',
+        'priority': 'high',
+      },
+      {
+        'title': 'Regular Exercise',
+        'description': 'Engage in 30 minutes of moderate exercise 5 days a week',
+        'priority': 'high',
+      },
+      {
+        'title': 'Stress Management',
+        'description': 'Practice relaxation techniques like meditation or deep breathing',
+        'priority': 'medium',
+      },
+      {
+        'title': 'Regular Monitoring',
+        'description': 'Check your blood pressure at least once a week',
+        'priority': 'high',
+      },
+      {
+        'title': 'Adequate Sleep',
+        'description': 'Aim for 7-9 hours of quality sleep each night',
+        'priority': 'medium',
+      },
+    ]);
+    
+    return recommendations;
+  }
+
+  double _getLatestRiskScore() {
+    if (_surveyResponses.isEmpty) return 0;
+    return _surveyResponses.first.riskScore;
+  }
+
+  String _getRiskLevel(double score) {
+    if (score >= 70) return 'High';
+    if (score >= 50) return 'Moderate';
+    if (score >= 30) return 'Elevated';
+    return 'Low';
+  }
+
+  String _getRiskDescription(double score) {
+    if (score >= 70) return 'Your hypertension risk is high. Immediate action is recommended.';
+    if (score >= 50) return 'Your hypertension risk is moderate. Medical consultation is advised.';
+    if (score >= 30) return 'Your hypertension risk is elevated. Follow the recommendations to reduce your risk.';
+    return 'Your hypertension risk is low. Continue maintaining healthy habits.';
+  }
 
   // Show dialog for export options
   void _showExportOptionsDialog() {
@@ -158,8 +292,8 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     );
   }
 
-  // Export the health report
-  void _exportReport(String format) {
+  // Export the health report as PDF
+  void _exportReport(String format) async {
     Navigator.of(context).pop(); // Close the bottom sheet
 
     // Show progress dialog
@@ -191,148 +325,296 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       },
     );
 
-    // Simulate export process
-    Future.delayed(const Duration(seconds: 2), () {
-      Navigator.of(context).pop(); // Close progress dialog
-
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: TextWidget(
-            text: 'Health report exported successfully as $format!',
-            fontSize: 14,
-            color: textOnPrimary,
-          ),
-          backgroundColor: healthGreen,
-          duration: const Duration(seconds: 3),
+    try {
+      final pdf = pw.Document();
+      
+      // Add content to PDF
+      pdf.addPage(
+        pw.Page(
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Header(
+                  level: 0,
+                  child: pw.Text(
+                    'Health Risk Assessment Report',
+                    style: pw.TextStyle(
+                      fontSize: 24,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text(
+                  'Generated on: ${DateTime.now().toString().split(' ')[0]}',
+                  style: const pw.TextStyle(fontSize: 14),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text(
+                  'Risk Assessment Summary',
+                  style: pw.TextStyle(
+                    fontSize: 18,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 10),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(10),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(),
+                    borderRadius: pw.BorderRadius.circular(5),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'Latest Risk Score: ${_getLatestRiskScore().toStringAsFixed(1)}',
+                        style: const pw.TextStyle(fontSize: 16),
+                      ),
+                      pw.SizedBox(height: 5),
+                      pw.Text(
+                        'Risk Level: ${_getRiskLevel(_getLatestRiskScore())}',
+                        style: const pw.TextStyle(fontSize: 16),
+                      ),
+                      pw.SizedBox(height: 5),
+                      pw.Text(
+                        _getRiskDescription(_getLatestRiskScore()),
+                        style: const pw.TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text(
+                  'Recommendations',
+                  style: pw.TextStyle(
+                    fontSize: 18,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 10),
+                ..._recommendations.map(
+                  (rec) => pw.Container(
+                    margin: const pw.EdgeInsets.only(bottom: 10),
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(),
+                      borderRadius: pw.BorderRadius.circular(5),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Row(
+                          children: [
+                            pw.Container(
+                              padding: const pw.EdgeInsets.all(4),
+                              decoration: pw.BoxDecoration(
+                                color: rec['priority'] == 'high'
+                                    ? PdfColors.red100
+                                    : PdfColors.orange100,
+                                borderRadius: pw.BorderRadius.circular(3),
+                              ),
+                              child: pw.Text(
+                                rec['priority'] == 'high' ? 'HIGH' : 'MEDIUM',
+                                style: pw.TextStyle(
+                                  color: rec['priority'] == 'high'
+                                      ? PdfColors.red
+                                      : PdfColors.orange,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                            pw.SizedBox(width: 10),
+                            pw.Expanded(
+                              child: pw.Text(
+                                rec['title'],
+                                style: pw.TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        pw.SizedBox(height: 5),
+                        pw.Text(
+                          rec['description'],
+                          style: const pw.TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       );
-    });
+
+      // Save PDF to device
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/health_report.pdf');
+      await file.writeAsBytes(await pdf.save());
+      
+      // Close progress dialog
+      if (mounted) {
+        Navigator.of(context).pop();
+        
+        // Show success message
+        Fluttertoast.showToast(
+          msg: 'Health report exported successfully to ${file.path}',
+          backgroundColor: healthGreen,
+          textColor: Colors.white,
+        );
+      }
+    } catch (e) {
+      // Close progress dialog
+      if (mounted) {
+        Navigator.of(context).pop();
+        
+        // Show error message
+        Fluttertoast.showToast(
+          msg: 'Failed to export health report',
+          backgroundColor: healthRed,
+          textColor: Colors.white,
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextWidget(
-            text: 'Risk Assessment',
-            fontSize: 20,
-            color: textPrimary,
-            fontFamily: 'Bold',
-          ),
-          const SizedBox(height: 16),
-          const RiskAssessmentCard(
-            riskScore: 32.0,
-            riskLevel: 'Elevated',
-            description:
-                'Your hypertension risk is elevated. Follow the recommendations to reduce your risk.',
-          ),
-          const SizedBox(height: 24),
-          TextWidget(
-            text: 'Personalized Recommendations',
-            fontSize: 20,
-            color: textPrimary,
-            fontFamily: 'Bold',
-          ),
-          const SizedBox(height: 16),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _recommendations.length,
-            itemBuilder: (context, index) {
-              final recommendation = _recommendations[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: primary))
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextWidget(
+                  text: 'Risk Assessment',
+                  fontSize: 20,
+                  color: textPrimary,
+                  fontFamily: 'Bold',
                 ),
-                child: Container(
+                const SizedBox(height: 16),
+                RiskAssessmentCard(
+                  riskScore: _getLatestRiskScore(),
+                  riskLevel: _getRiskLevel(_getLatestRiskScore()),
+                  description: _getRiskDescription(_getLatestRiskScore()),
+                ),
+                const SizedBox(height: 24),
+                TextWidget(
+                  text: 'Personalized Recommendations',
+                  fontSize: 20,
+                  color: textPrimary,
+                  fontFamily: 'Bold',
+                ),
+                const SizedBox(height: 16),
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _recommendations.length,
+                  itemBuilder: (context, index) {
+                    final recommendation = _recommendations[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: surface,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: recommendation['priority'] == 'high'
+                                        ? healthRed.withOpacity(0.1)
+                                        : accent.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Icon(
+                                    recommendation['priority'] == 'high'
+                                        ? Icons.warning_amber
+                                        : Icons.info,
+                                    size: 20,
+                                    color: recommendation['priority'] == 'high'
+                                        ? healthRed
+                                        : accent,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextWidget(
+                                    text: recommendation['title'],
+                                    fontSize: 16,
+                                    color: textPrimary,
+                                    fontFamily: 'Bold',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            TextWidget(
+                              text: recommendation['description'],
+                              fontSize: 14,
+                              color: textPrimary,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+                TextWidget(
+                  text: 'Health Trend',
+                  fontSize: 20,
+                  color: textPrimary,
+                  fontFamily: 'Bold',
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  height: 200,
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: surface,
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: grey),
                   ),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: recommendation['priority'] == 'high'
-                                  ? healthRed.withOpacity(0.1)
-                                  : accent.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Icon(
-                              recommendation['priority'] == 'high'
-                                  ? Icons.warning_amber
-                                  : Icons.info,
-                              size: 20,
-                              color: recommendation['priority'] == 'high'
-                                  ? healthRed
-                                  : accent,
-                            ),
+                  child: _trendData.isEmpty
+                      ? Center(
+                          child: TextWidget(
+                            text: 'No data available',
+                            fontSize: 16,
+                            color: textLight,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextWidget(
-                              text: recommendation['title'],
-                              fontSize: 16,
-                              color: textPrimary,
-                              fontFamily: 'Bold',
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      TextWidget(
-                        text: recommendation['description'],
-                        fontSize: 14,
-                        color: textPrimary,
-                      ),
-                    ],
+                        )
+                      : CustomPaint(
+                          painter: TrendChartPainter(_trendData),
+                          size: const Size(double.infinity, 200),
+                        ),
+                ),
+                const SizedBox(height: 24),
+                Center(
+                  child: ButtonWidget(
+                    label: 'Export Health Report',
+                    onPressed: _showExportOptionsDialog,
+                    icon: const Icon(Icons.download, color: Colors.white),
                   ),
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          TextWidget(
-            text: 'Health Trend',
-            fontSize: 20,
-            color: textPrimary,
-            fontFamily: 'Bold',
-          ),
-          const SizedBox(height: 16),
-          Container(
-            height: 200,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: grey),
+              ],
             ),
-            child: CustomPaint(
-              painter: TrendChartPainter(_trendData),
-              size: const Size(double.infinity, 200),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Center(
-            child: ButtonWidget(
-              label: 'Export Health Report',
-              onPressed: _showExportOptionsDialog,
-              icon: const Icon(Icons.download, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -344,6 +626,8 @@ class TrendChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (data.isEmpty) return;
+    
     final paint = Paint()
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
@@ -357,7 +641,7 @@ class TrendChartPainter extends CustomPainter {
 
     final double chartWidth = size.width - 40;
     final double chartHeight = size.height - 40;
-    final double pointSpacing = chartWidth / (data.length - 1);
+    final double pointSpacing = data.length > 1 ? chartWidth / (data.length - 1) : 0;
 
     // Find min and max values for scaling
     int minVal = 0;
@@ -384,48 +668,50 @@ class TrendChartPainter extends CustomPainter {
     }
 
     // Draw data points and lines
-    Path trendPath = Path();
-    for (int i = 0; i < data.length; i++) {
-      final double x = 20 + i * pointSpacing;
-      final double y = 20 +
-          chartHeight -
-          ((data[i]['score'] - minVal) / (maxVal - minVal)) * chartHeight;
+    if (data.isNotEmpty) {
+      Path trendPath = Path();
+      for (int i = 0; i < data.length; i++) {
+        final double x = 20 + i * pointSpacing;
+        final double y = 20 +
+            chartHeight -
+            ((data[i]['score'] - minVal) / (maxVal - minVal)) * chartHeight;
 
-      if (i == 0) {
-        trendPath.moveTo(x, y);
-      } else {
-        trendPath.lineTo(x, y);
+        if (i == 0) {
+          trendPath.moveTo(x, y);
+        } else {
+          trendPath.lineTo(x, y);
+        }
+
+        // Draw point
+        canvas.drawCircle(
+            Offset(x, y), 4, trendPaint..style = PaintingStyle.fill);
+      }
+      canvas.drawPath(trendPath, trendPaint..style = PaintingStyle.stroke);
+
+      // Draw labels for months
+      for (int i = 0; i < data.length; i++) {
+        final double x = 20 + i * pointSpacing;
+        textPainter.text = TextSpan(
+          text: data[i]['month'],
+          style: const TextStyle(color: Colors.grey, fontSize: 10),
+        );
+        textPainter.layout();
+        textPainter.paint(
+            canvas, Offset(x - textPainter.width / 2, size.height - 20));
       }
 
-      // Draw point
-      canvas.drawCircle(
-          Offset(x, y), 4, trendPaint..style = PaintingStyle.fill);
-    }
-    canvas.drawPath(trendPath, trendPaint..style = PaintingStyle.stroke);
-
-    // Draw labels for months
-    for (int i = 0; i < data.length; i++) {
-      final double x = 20 + i * pointSpacing;
-      textPainter.text = TextSpan(
-        text: data[i]['month'],
-        style: const TextStyle(color: Colors.grey, fontSize: 10),
+      // Draw Y-axis label
+      final yLabelPainter = TextPainter(
+        text: const TextSpan(
+          text: 'Risk Score',
+          style: TextStyle(color: Colors.grey, fontSize: 12),
+        ),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
       );
-      textPainter.layout();
-      textPainter.paint(
-          canvas, Offset(x - textPainter.width / 2, size.height - 20));
+      yLabelPainter.layout();
+      yLabelPainter.paint(canvas, Offset(0, 0));
     }
-
-    // Draw Y-axis label
-    final yLabelPainter = TextPainter(
-      text: const TextSpan(
-        text: 'Risk Score',
-        style: TextStyle(color: Colors.grey, fontSize: 12),
-      ),
-      textAlign: TextAlign.center,
-      textDirection: TextDirection.ltr,
-    );
-    yLabelPainter.layout();
-    yLabelPainter.paint(canvas, Offset(0, 0));
   }
 
   @override

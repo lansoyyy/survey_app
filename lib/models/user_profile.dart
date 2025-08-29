@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserProfile {
   final String userId;
@@ -28,10 +29,34 @@ class UserProfile {
       email: json['email'] as String,
       age: json['age'] as int,
       gender: json['gender'] as String,
-      registrationDate: DateTime.parse(json['registrationDate'] as String),
-      lastLogin: DateTime.parse(json['lastLogin'] as String),
+      registrationDate: _parseTimestamp(json['registrationDate']),
+      lastLogin: _parseTimestamp(json['lastLogin']),
       accountStatus: json['accountStatus'] as String,
     );
+  }
+
+  static DateTime _parseTimestamp(dynamic timestamp) {
+    if (timestamp == null) {
+      return DateTime.now();
+    }
+    
+    // If it's already a DateTime, return it
+    if (timestamp is DateTime) {
+      return timestamp;
+    }
+    
+    // If it's a Timestamp object from Firebase
+    if (timestamp is Timestamp) {
+      return timestamp.toDate();
+    }
+    
+    // If it's a string, parse it
+    if (timestamp is String) {
+      return DateTime.parse(timestamp);
+    }
+    
+    // Default fallback
+    return DateTime.now();
   }
 
   Map<String, dynamic> toJson() {
@@ -41,8 +66,8 @@ class UserProfile {
       'email': email,
       'age': age,
       'gender': gender,
-      'registrationDate': registrationDate.toIso8601String(),
-      'lastLogin': lastLogin.toIso8601String(),
+      'registrationDate': registrationDate,
+      'lastLogin': lastLogin,
       'accountStatus': accountStatus,
     };
   }

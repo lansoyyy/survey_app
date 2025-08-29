@@ -1,8 +1,12 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:survey_app/models/user_profile.dart';
+import 'package:survey_app/services/auth_service.dart';
+import 'package:survey_app/services/admin_service.dart';
 import 'package:survey_app/utils/colors.dart';
 import 'package:survey_app/widgets/button_widget.dart';
 import 'package:survey_app/widgets/text_widget.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class AccountManagementScreen extends StatefulWidget {
   const AccountManagementScreen({super.key});
@@ -13,64 +17,50 @@ class AccountManagementScreen extends StatefulWidget {
 }
 
 class _AccountManagementScreenState extends State<AccountManagementScreen> {
-  // Sample user data
-  final List<UserProfile> _users = [
-    UserProfile(
-      userId: 'user_001',
-      name: 'John Doe',
-      email: 'john.doe@example.com',
-      age: 45,
-      gender: 'Male',
-      registrationDate: DateTime(2023, 1, 15),
-      lastLogin: DateTime(2023, 6, 10),
-      accountStatus: 'active',
-    ),
-    UserProfile(
-      userId: 'user_002',
-      name: 'Jane Smith',
-      email: 'jane.smith@example.com',
-      age: 38,
-      gender: 'Female',
-      registrationDate: DateTime(2023, 2, 20),
-      lastLogin: DateTime(2023, 6, 12),
-      accountStatus: 'active',
-    ),
-    UserProfile(
-      userId: 'user_003',
-      name: 'Robert Johnson',
-      email: 'robert.j@example.com',
-      age: 52,
-      gender: 'Male',
-      registrationDate: DateTime(2023, 3, 5),
-      lastLogin: DateTime(2023, 6, 1),
-      accountStatus: 'inactive',
-    ),
-    UserProfile(
-      userId: 'user_004',
-      name: 'Emily Davis',
-      email: 'emily.davis@example.com',
-      age: 29,
-      gender: 'Female',
-      registrationDate: DateTime(2023, 4, 18),
-      lastLogin: DateTime(2023, 6, 11),
-      accountStatus: 'active',
-    ),
-    UserProfile(
-      userId: 'user_005',
-      name: 'Michael Brown',
-      email: 'michael.b@example.com',
-      age: 35,
-      gender: 'Male',
-      registrationDate: DateTime(2023, 5, 30),
-      lastLogin: DateTime(2023, 6, 5),
-      accountStatus: 'active',
-    ),
-  ];
+  final AuthService _authService = AuthService();
+  final AdminService _adminService = AdminService();
+
+  List<UserProfile> _users = [];
+  List<UserProfile> _filteredUsers = [];
+  bool _isLoading = true;
 
   String _searchQuery = '';
   String _statusFilter = 'all';
 
-  List<UserProfile> get _filteredUsers {
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
+
+  void _loadUsers() {
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Listen to users stream
+    _adminService.getAllUsers().listen((users) {
+      setState(() {
+        _users = users;
+        _applyFilters();
+        _isLoading = false;
+      });
+    }, onError: (error) {
+      print(error);
+      if (mounted) {
+        Fluttertoast.showToast(
+          msg: 'Failed to load users',
+          backgroundColor: healthRed,
+          textColor: Colors.white,
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  void _applyFilters() {
     List<UserProfile> filtered = _users;
 
     // Apply search filter
@@ -88,7 +78,9 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
           .toList();
     }
 
-    return filtered;
+    setState(() {
+      _filteredUsers = filtered;
+    });
   }
 
   void _showUserDetails(UserProfile user) {
@@ -103,17 +95,44 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                   _users.indexWhere((u) => u.userId == updatedUser.userId);
               if (index != -1) {
                 _users[index] = updatedUser;
+                _applyFilters();
               }
             });
           },
-          onUserStatusChanged: (updatedUser) {
-            setState(() {
-              final index =
-                  _users.indexWhere((u) => u.userId == updatedUser.userId);
-              if (index != -1) {
-                _users[index] = updatedUser;
+          onUserStatusChanged: (updatedUser) async {
+            try {
+              await _adminService.updateUserAccountStatus(
+                updatedUser.userId,
+                updatedUser.accountStatus,
+              );
+
+              setState(() {
+                final index =
+                    _users.indexWhere((u) => u.userId == updatedUser.userId);
+                if (index != -1) {
+                  _users[index] = updatedUser;
+                  _applyFilters();
+                }
+              });
+
+              if (mounted) {
+                Fluttertoast.showToast(
+                  msg: 'User ${updatedUser.accountStatus}d successfully',
+                  backgroundColor: updatedUser.accountStatus == 'active'
+                      ? healthGreen
+                      : healthRed,
+                  textColor: Colors.white,
+                );
               }
-            });
+            } catch (e) {
+              if (mounted) {
+                Fluttertoast.showToast(
+                  msg: 'Failed to update user status',
+                  backgroundColor: healthRed,
+                  textColor: Colors.white,
+                );
+              }
+            }
           },
         );
       },
@@ -152,6 +171,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                     onChanged: (value) {
                       setState(() {
                         _searchQuery = value;
+                        _applyFilters();
                       });
                     },
                   ),
@@ -180,6 +200,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           onSelected: (selected) {
                             setState(() {
                               _statusFilter = selected ? 'all' : _statusFilter;
+                              _applyFilters();
                             });
                           },
                         ),
@@ -198,6 +219,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                             setState(() {
                               _statusFilter =
                                   selected ? 'active' : _statusFilter;
+                              _applyFilters();
                             });
                           },
                         ),
@@ -216,6 +238,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                             setState(() {
                               _statusFilter =
                                   selected ? 'inactive' : _statusFilter;
+                              _applyFilters();
                             });
                           },
                         ),
@@ -229,82 +252,93 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
           const SizedBox(height: 16),
           // User list
           Expanded(
-            child: ListView.builder(
-              itemCount: _filteredUsers.length,
-              itemBuilder: (context, index) {
-                final user = _filteredUsers[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
-                    leading: CircleAvatar(
-                      backgroundColor: primary.withOpacity(0.1),
-                      child: TextWidget(
-                        text: user.name.substring(0, 1).toUpperCase(),
-                        fontSize: 18,
-                        color: primary,
-                        fontFamily: 'Bold',
-                      ),
-                    ),
-                    title: TextWidget(
-                      text: user.name,
-                      fontSize: 16,
-                      color: textPrimary,
-                      fontFamily: 'Bold',
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        TextWidget(
-                          text: user.email,
-                          fontSize: 14,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: primary))
+                : _filteredUsers.isEmpty
+                    ? Center(
+                        child: TextWidget(
+                          text: 'No users found',
+                          fontSize: 16,
                           color: textLight,
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                      )
+                    : ListView.builder(
+                        itemCount: _filteredUsers.length,
+                        itemBuilder: (context, index) {
+                          final user = _filteredUsers[index];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.all(16),
+                              leading: CircleAvatar(
+                                backgroundColor: primary.withOpacity(0.1),
+                                child: TextWidget(
+                                  text: user.name.substring(0, 1).toUpperCase(),
+                                  fontSize: 18,
+                                  color: primary,
+                                  fontFamily: 'Bold',
+                                ),
                               ),
-                              decoration: BoxDecoration(
-                                color: user.accountStatus == 'active'
-                                    ? healthGreen.withOpacity(0.1)
-                                    : Colors.grey.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
+                              title: TextWidget(
+                                text: user.name,
+                                fontSize: 16,
+                                color: textPrimary,
+                                fontFamily: 'Bold',
                               ),
-                              child: TextWidget(
-                                text: user.accountStatus.capitalize(),
-                                fontSize: 12,
-                                color: user.accountStatus == 'active'
-                                    ? healthGreen
-                                    : Colors.grey,
-                                fontFamily: 'Medium',
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  TextWidget(
+                                    text: user.email,
+                                    fontSize: 14,
+                                    color: textLight,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: user.accountStatus == 'active'
+                                              ? healthGreen.withOpacity(0.1)
+                                              : Colors.grey.withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: TextWidget(
+                                          text: user.accountStatus.capitalize(),
+                                          fontSize: 12,
+                                          color: user.accountStatus == 'active'
+                                              ? healthGreen
+                                              : Colors.grey,
+                                          fontFamily: 'Medium',
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      TextWidget(
+                                        text: '${user.age} years',
+                                        fontSize: 12,
+                                        color: textLight,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.more_vert),
+                                onPressed: () => _showUserDetails(user),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            TextWidget(
-                              text: '${user.age} years',
-                              fontSize: 12,
-                              color: textLight,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.more_vert),
-                      onPressed: () => _showUserDetails(user),
-                    ),
-                  ),
-                );
-              },
-            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
@@ -347,6 +381,7 @@ class _UserDetailsSheetState extends State<UserDetailsSheet> {
 
   @override
   void dispose() {
+    // Only dispose the controllers used in this widget
     _nameController.dispose();
     _emailController.dispose();
     _ageController.dispose();
@@ -354,12 +389,17 @@ class _UserDetailsSheetState extends State<UserDetailsSheet> {
   }
 
   void _editUser() {
-    // Close the bottom sheet
-    Navigator.of(context).pop();
+    // Create new controllers for the dialog
+    final nameController = TextEditingController(text: widget.user.name);
+    final emailController = TextEditingController(text: widget.user.email);
+    final ageController =
+        TextEditingController(text: widget.user.age.toString());
+    String gender = widget.user.gender;
 
-    // Show edit dialog
+    // Show edit dialog using root navigator to avoid context issues
     showDialog(
       context: context,
+      useRootNavigator: true, // Use root navigator to avoid context issues
       builder: (BuildContext context) {
         return AlertDialog(
           title: TextWidget(
@@ -373,7 +413,7 @@ class _UserDetailsSheetState extends State<UserDetailsSheet> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                  controller: _nameController,
+                  controller: nameController,
                   decoration: InputDecoration(
                     labelText: 'Name',
                     border: OutlineInputBorder(
@@ -383,7 +423,7 @@ class _UserDetailsSheetState extends State<UserDetailsSheet> {
                 ),
                 const SizedBox(height: 16),
                 TextField(
-                  controller: _emailController,
+                  controller: emailController,
                   decoration: InputDecoration(
                     labelText: 'Email',
                     border: OutlineInputBorder(
@@ -393,7 +433,7 @@ class _UserDetailsSheetState extends State<UserDetailsSheet> {
                 ),
                 const SizedBox(height: 16),
                 TextField(
-                  controller: _ageController,
+                  controller: ageController,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     labelText: 'Age',
@@ -408,7 +448,13 @@ class _UserDetailsSheetState extends State<UserDetailsSheet> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                // Dispose controllers and close dialog
+                nameController.dispose();
+                emailController.dispose();
+                ageController.dispose();
+                Navigator.of(context).pop();
+              },
               child: TextWidget(
                 text: 'Cancel',
                 fontSize: 16,
@@ -418,9 +464,9 @@ class _UserDetailsSheetState extends State<UserDetailsSheet> {
             ElevatedButton(
               onPressed: () {
                 // Validate inputs
-                if (_nameController.text.isEmpty ||
-                    _emailController.text.isEmpty ||
-                    _ageController.text.isEmpty) {
+                if (nameController.text.isEmpty ||
+                    emailController.text.isEmpty ||
+                    ageController.text.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: TextWidget(
@@ -437,16 +483,27 @@ class _UserDetailsSheetState extends State<UserDetailsSheet> {
                 // Update user
                 final updatedUser = UserProfile(
                   userId: widget.user.userId,
-                  name: _nameController.text,
-                  email: _emailController.text,
-                  age: int.parse(_ageController.text),
-                  gender: _gender,
+                  name: nameController.text,
+                  email: emailController.text,
+                  age: int.parse(ageController.text),
+                  gender: gender,
                   registrationDate: widget.user.registrationDate,
                   lastLogin: widget.user.lastLogin,
                   accountStatus: widget.user.accountStatus,
                 );
 
+                // Dispose controllers
+                nameController.dispose();
+                emailController.dispose();
+                ageController.dispose();
+
+                // Close dialog
                 Navigator.of(context).pop();
+
+                // Close the bottom sheet
+                Navigator.of(context, rootNavigator: true).pop();
+
+                // Notify parent
                 widget.onUserUpdated(updatedUser);
 
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -479,9 +536,6 @@ class _UserDetailsSheetState extends State<UserDetailsSheet> {
   }
 
   void _toggleUserStatus() {
-    // Close the bottom sheet
-    Navigator.of(context).pop();
-
     // Toggle status
     final newStatus = _accountStatus == 'active' ? 'inactive' : 'active';
     final updatedUser = UserProfile(
@@ -496,6 +550,9 @@ class _UserDetailsSheetState extends State<UserDetailsSheet> {
     );
 
     widget.onUserStatusChanged(updatedUser);
+
+    // Close the bottom sheet using root navigator
+    Navigator.of(context, rootNavigator: true).pop();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -561,16 +618,10 @@ class _UserDetailsSheetState extends State<UserDetailsSheet> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ButtonWidget(
-                  label: 'Edit',
-                  onPressed: _editUser,
-                  width: 120,
-                  height: 40,
-                ),
-                ButtonWidget(
                   label: _accountStatus == 'active' ? 'Disable' : 'Enable',
                   onPressed: _toggleUserStatus,
                   color: _accountStatus == 'active' ? healthRed : healthGreen,
-                  width: 120,
+                  width: 300,
                   height: 40,
                 ),
               ],

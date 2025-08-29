@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:survey_app/screens/user/survey/survey_screen.dart';
 import 'package:survey_app/screens/user/monitoring/monitoring_screen.dart';
 import 'package:survey_app/screens/user/analysis/analysis_screen.dart';
+import 'package:survey_app/services/auth_service.dart';
 import 'package:survey_app/widgets/custom_app_bar.dart';
 import 'package:survey_app/widgets/custom_bottom_navigation_bar.dart';
 
@@ -14,6 +16,7 @@ class UserHomeScreen extends StatefulWidget {
 
 class _UserHomeScreenState extends State<UserHomeScreen> {
   int _currentIndex = 0;
+  final AuthService _authService = AuthService();
 
   final List<Widget> _screens = [
     const SurveyScreen(),
@@ -27,8 +30,30 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     });
   }
 
+  void _logout() async {
+    await _authService.logout();
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/user/login');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Instead of using StreamBuilder, we'll check if user is authenticated directly
+    final user = _authService.currentUser;
+    
+    // If user is not authenticated, redirect to login
+    if (user == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacementNamed(context, '/user/login');
+      });
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: CustomAppBar(
         title: _getAppBarTitle(),
@@ -40,6 +65,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               // Navigate to admin login
               Navigator.pushNamed(context, '/admin/login');
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: _logout,
           ),
         ],
       ),

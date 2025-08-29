@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SurveyResponse {
   final String responseId;
@@ -25,10 +26,34 @@ class SurveyResponse {
       userId: json['userId'] as String,
       surveyId: json['surveyId'] as String,
       answers: json['answers'] as Map<String, dynamic>,
-      submittedAt: DateTime.parse(json['submittedAt'] as String),
+      submittedAt: _parseTimestamp(json['submittedAt']),
       riskScore: (json['riskScore'] as num).toDouble(),
       completionStatus: json['completionStatus'] as String,
     );
+  }
+
+  static DateTime _parseTimestamp(dynamic timestamp) {
+    if (timestamp == null) {
+      return DateTime.now();
+    }
+    
+    // If it's already a DateTime, return it
+    if (timestamp is DateTime) {
+      return timestamp;
+    }
+    
+    // If it's a Timestamp object from Firebase
+    if (timestamp is Timestamp) {
+      return timestamp.toDate();
+    }
+    
+    // If it's a string, parse it
+    if (timestamp is String) {
+      return DateTime.parse(timestamp);
+    }
+    
+    // Default fallback
+    return DateTime.now();
   }
 
   Map<String, dynamic> toJson() {
@@ -37,8 +62,8 @@ class SurveyResponse {
       'userId': userId,
       'surveyId': surveyId,
       'answers': answers,
-      'submittedAt': submittedAt.toIso8601String(),
-      'riskScore': riskScore,
+      'submittedAt': submittedAt,
+      'riskScore': riskScore, // This is already a double
       'completionStatus': completionStatus,
     };
   }

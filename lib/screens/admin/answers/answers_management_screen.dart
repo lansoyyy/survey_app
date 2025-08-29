@@ -1,6 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:survey_app/models/survey_response.dart';
 import 'package:survey_app/models/user_profile.dart';
+import 'package:survey_app/services/auth_service.dart';
+import 'package:survey_app/services/admin_service.dart';
 import 'package:survey_app/utils/colors.dart';
 import 'package:survey_app/widgets/button_widget.dart';
 import 'package:survey_app/widgets/text_widget.dart';
@@ -8,6 +11,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class AnswersManagementScreen extends StatefulWidget {
   const AnswersManagementScreen({super.key});
@@ -18,120 +22,68 @@ class AnswersManagementScreen extends StatefulWidget {
 }
 
 class _AnswersManagementScreenState extends State<AnswersManagementScreen> {
-  // Sample survey responses
-  final List<SurveyResponse> _responses = [
-    SurveyResponse(
-      responseId: 'resp_001',
-      userId: 'user_001',
-      surveyId: 'hypertension_risk_2023',
-      answers: {
-        'age': 45,
-        'gender': 'Male',
-        'family_history': true,
-        'smoking': false,
-        'exercise_frequency': 'Occasionally',
-      },
-      submittedAt: DateTime(2023, 6, 10),
-      riskScore: 65.5,
-      completionStatus: 'complete',
-    ),
-    SurveyResponse(
-      responseId: 'resp_002',
-      userId: 'user_002',
-      surveyId: 'hypertension_risk_2023',
-      answers: {
-        'age': 38,
-        'gender': 'Female',
-        'family_history': false,
-        'smoking': true,
-        'exercise_frequency': 'Rarely',
-      },
-      submittedAt: DateTime(2023, 6, 12),
-      riskScore: 42.0,
-      completionStatus: 'complete',
-    ),
-    SurveyResponse(
-      responseId: 'resp_003',
-      userId: 'user_003',
-      surveyId: 'hypertension_risk_2023',
-      answers: {
-        'age': 52,
-        'gender': 'Male',
-        'family_history': true,
-        'smoking': true,
-        'exercise_frequency': 'Never',
-      },
-      submittedAt: DateTime(2023, 6, 1),
-      riskScore: 82.3,
-      completionStatus: 'complete',
-    ),
-    SurveyResponse(
-      responseId: 'resp_004',
-      userId: 'user_004',
-      surveyId: 'hypertension_risk_2023',
-      answers: {
-        'age': 29,
-        'gender': 'Female',
-        'family_history': false,
-        'smoking': false,
-        'exercise_frequency': 'Regularly',
-      },
-      submittedAt: DateTime(2023, 6, 11),
-      riskScore: 25.7,
-      completionStatus: 'complete',
-    ),
-  ];
+  final AuthService _authService = AuthService();
+  final AdminService _adminService = AdminService();
 
-  // Sample users for display
-  final Map<String, UserProfile> _users = {
-    'user_001': UserProfile(
-      userId: 'user_001',
-      name: 'John Doe',
-      email: 'john.doe@example.com',
-      age: 45,
-      gender: 'Male',
-      registrationDate: DateTime(2023, 1, 15),
-      lastLogin: DateTime(2023, 6, 10),
-      accountStatus: 'active',
-    ),
-    'user_002': UserProfile(
-      userId: 'user_002',
-      name: 'Jane Smith',
-      email: 'jane.smith@example.com',
-      age: 38,
-      gender: 'Female',
-      registrationDate: DateTime(2023, 2, 20),
-      lastLogin: DateTime(2023, 6, 12),
-      accountStatus: 'active',
-    ),
-    'user_003': UserProfile(
-      userId: 'user_003',
-      name: 'Robert Johnson',
-      email: 'robert.j@example.com',
-      age: 52,
-      gender: 'Male',
-      registrationDate: DateTime(2023, 3, 5),
-      lastLogin: DateTime(2023, 6, 1),
-      accountStatus: 'inactive',
-    ),
-    'user_004': UserProfile(
-      userId: 'user_004',
-      name: 'Emily Davis',
-      email: 'emily.davis@example.com',
-      age: 29,
-      gender: 'Female',
-      registrationDate: DateTime(2023, 4, 18),
-      lastLogin: DateTime(2023, 6, 11),
-      accountStatus: 'active',
-    ),
-  };
+  List<SurveyResponse> _responses = [];
+  List<SurveyResponse> _filteredResponses = [];
+  Map<String, UserProfile> _users = {};
+  bool _isLoading = true;
 
   String _searchQuery = '';
   String _statusFilter = 'all';
   DateTime? _startDate;
   DateTime? _endDate;
 
-  List<SurveyResponse> get _filteredResponses {
+  @override
+  void initState() {
+    super.initState();
+    _loadSurveyResponses();
+  }
+
+  void _loadSurveyResponses() {
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Listen to survey responses stream
+    _adminService.getAllSurveyResponses().listen((responses) async {
+      // Load user data for each response
+      Map<String, UserProfile> usersMap = {};
+      for (var response in responses) {
+        if (!usersMap.containsKey(response.userId)) {
+          try {
+            final user = await _adminService.getUserById(response.userId);
+            if (user != null) {
+              usersMap[response.userId] = user;
+            }
+          } catch (e) {
+            // Handle error silently
+          }
+        }
+      }
+
+      setState(() {
+        _responses = responses;
+        _users = usersMap;
+        _applyFilters();
+        _isLoading = false;
+      });
+    }, onError: (error) {
+      if (mounted) {
+        Fluttertoast.showToast(
+          msg: 'Failed to load survey responses',
+          backgroundColor: healthRed,
+          textColor: Colors.white,
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  void _applyFilters() {
     List<SurveyResponse> filtered = _responses;
 
     // Apply search filter
@@ -164,7 +116,9 @@ class _AnswersManagementScreenState extends State<AnswersManagementScreen> {
           .toList();
     }
 
-    return filtered;
+    setState(() {
+      _filteredResponses = filtered;
+    });
   }
 
   void _showResponseDetails(SurveyResponse response) {
@@ -198,6 +152,7 @@ class _AnswersManagementScreenState extends State<AnswersManagementScreen> {
         setState(() {
           _startDate = start;
           _endDate = end;
+          _applyFilters();
         });
       }
     }
@@ -205,6 +160,15 @@ class _AnswersManagementScreenState extends State<AnswersManagementScreen> {
 
   // Export data to PDF
   void _exportDataToPdf() async {
+    if (_filteredResponses.isEmpty) {
+      Fluttertoast.showToast(
+        msg: 'No data to export',
+        backgroundColor: healthRed,
+        textColor: Colors.white,
+      );
+      return;
+    }
+
     // Show progress dialog
     showDialog(
       context: context,
@@ -309,36 +273,28 @@ class _AnswersManagementScreenState extends State<AnswersManagementScreen> {
       await file.writeAsBytes(await pdf.save());
 
       // Close progress dialog
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
 
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: TextWidget(
-            text: 'PDF report generated successfully! Saved to ${file.path}',
-            fontSize: 14,
-            color: textOnPrimary,
-          ),
+        // Show success message
+        Fluttertoast.showToast(
+          msg: 'PDF report generated successfully! Saved to ${file.path}',
           backgroundColor: healthGreen,
-          duration: const Duration(seconds: 5),
-        ),
-      );
+          textColor: Colors.white,
+        );
+      }
     } catch (e) {
       // Close progress dialog
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
 
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: TextWidget(
-            text: 'Failed to generate PDF report: $e',
-            fontSize: 14,
-            color: textOnPrimary,
-          ),
+        // Show error message
+        Fluttertoast.showToast(
+          msg: 'Failed to generate PDF report',
           backgroundColor: healthRed,
-          duration: const Duration(seconds: 5),
-        ),
-      );
+          textColor: Colors.white,
+        );
+      }
     }
   }
 
@@ -390,6 +346,7 @@ class _AnswersManagementScreenState extends State<AnswersManagementScreen> {
                     onChanged: (value) {
                       setState(() {
                         _searchQuery = value;
+                        _applyFilters();
                       });
                     },
                   ),
@@ -419,6 +376,7 @@ class _AnswersManagementScreenState extends State<AnswersManagementScreen> {
                           onChanged: (value) {
                             setState(() {
                               _statusFilter = value ?? 'all';
+                              _applyFilters();
                             });
                           },
                         ),
@@ -477,104 +435,120 @@ class _AnswersManagementScreenState extends State<AnswersManagementScreen> {
           const SizedBox(height: 16),
           // Response list
           Expanded(
-            child: ListView.builder(
-              itemCount: _filteredResponses.length,
-              itemBuilder: (context, index) {
-                final response = _filteredResponses[index];
-                final user = _users[response.userId];
-
-                if (user == null) return const SizedBox();
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
-                    title: TextWidget(
-                      text: user.name,
-                      fontSize: 16,
-                      color: textPrimary,
-                      fontFamily: 'Bold',
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        TextWidget(
-                          text: user.email,
-                          fontSize: 14,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: primary))
+                : _filteredResponses.isEmpty
+                    ? Center(
+                        child: TextWidget(
+                          text: 'No survey responses found',
+                          fontSize: 16,
                           color: textLight,
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            TextWidget(
-                              text:
-                                  '${response.submittedAt.day}/${response.submittedAt.month}/${response.submittedAt.year}',
-                              fontSize: 12,
-                              color: textLight,
+                      )
+                    : ListView.builder(
+                        itemCount: _filteredResponses.length,
+                        itemBuilder: (context, index) {
+                          final response = _filteredResponses[index];
+                          final user = _users[response.userId];
+
+                          if (user == null) return const SizedBox();
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            const SizedBox(width: 16),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.all(16),
+                              title: TextWidget(
+                                text: user.name,
+                                fontSize: 16,
+                                color: textPrimary,
+                                fontFamily: 'Bold',
                               ),
-                              decoration: BoxDecoration(
-                                color: _getRiskColor(response.riskScore)
-                                    .withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  TextWidget(
+                                    text: user.email,
+                                    fontSize: 14,
+                                    color: textLight,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      TextWidget(
+                                        text:
+                                            '${response.submittedAt.day}/${response.submittedAt.month}/${response.submittedAt.year}',
+                                        fontSize: 12,
+                                        color: textLight,
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              _getRiskColor(response.riskScore)
+                                                  .withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: TextWidget(
+                                          text:
+                                              '${response.riskScore.toStringAsFixed(1)}',
+                                          fontSize: 12,
+                                          color:
+                                              _getRiskColor(response.riskScore),
+                                          fontFamily: 'Medium',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                              child: TextWidget(
-                                text:
-                                    '${response.riskScore.toStringAsFixed(1)}',
-                                fontSize: 12,
-                                color: _getRiskColor(response.riskScore),
-                                fontFamily: 'Medium',
+                              trailing: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: response.completionStatus ==
+                                              'complete'
+                                          ? healthGreen.withOpacity(0.1)
+                                          : Colors.grey.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: TextWidget(
+                                      text: response.completionStatus
+                                          .capitalize(),
+                                      fontSize: 12,
+                                      color: response.completionStatus ==
+                                              'complete'
+                                          ? healthGreen
+                                          : Colors.grey,
+                                      fontFamily: 'Medium',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  TextWidget(
+                                    text: _getRiskLevel(response.riskScore),
+                                    fontSize: 10,
+                                    color: _getRiskColor(response.riskScore),
+                                  ),
+                                ],
                               ),
+                              onTap: () => _showResponseDetails(response),
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: response.completionStatus == 'complete'
-                                ? healthGreen.withOpacity(0.1)
-                                : Colors.grey.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: TextWidget(
-                            text: response.completionStatus.capitalize(),
-                            fontSize: 12,
-                            color: response.completionStatus == 'complete'
-                                ? healthGreen
-                                : Colors.grey,
-                            fontFamily: 'Medium',
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        TextWidget(
-                          text: _getRiskLevel(response.riskScore),
-                          fontSize: 10,
-                          color: _getRiskColor(response.riskScore),
-                        ),
-                      ],
-                    ),
-                    onTap: () => _showResponseDetails(response),
-                  ),
-                );
-              },
-            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
@@ -593,27 +567,94 @@ class ResponseDetailsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              TextWidget(
-                text: 'Survey Response Details',
-                fontSize: 20,
-                color: textPrimary,
-                fontFamily: 'Bold',
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextWidget(
+                  text: 'Survey Response Details',
+                  fontSize: 20,
+                  color: textPrimary,
+                  fontFamily: 'Bold',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (user != null) ...[
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: surfaceBlue,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: primary.withOpacity(0.1),
+                            child: TextWidget(
+                              text: user!.name.substring(0, 1).toUpperCase(),
+                              fontSize: 18,
+                              color: primary,
+                              fontFamily: 'Bold',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextWidget(
+                                  text: user!.name,
+                                  fontSize: 16,
+                                  color: textPrimary,
+                                  fontFamily: 'Bold',
+                                ),
+                                TextWidget(
+                                  text: user!.email,
+                                  fontSize: 14,
+                                  color: textLight,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          _buildInfoChip('Age: ${user!.age}', primary),
+                          const SizedBox(width: 8),
+                          _buildInfoChip('Gender: ${user!.gender}', primary),
+                          const SizedBox(width: 8),
+                          _buildInfoChip(
+                              'Status: ${user!.accountStatus.capitalize()}',
+                              user!.accountStatus == 'active'
+                                  ? healthGreen
+                                  : Colors.grey),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
+              const SizedBox(height: 16),
             ],
-          ),
-          const SizedBox(height: 16),
-          if (user != null) ...[
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -622,176 +663,112 @@ class ResponseDetailsSheet extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: surfaceBlue,
+                  color: surface,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: primary.withOpacity(0.1),
-                          child: TextWidget(
-                            text: user!.name.substring(0, 1).toUpperCase(),
-                            fontSize: 18,
-                            color: primary,
-                            fontFamily: 'Bold',
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              TextWidget(
-                                text: user!.name,
-                                fontSize: 16,
-                                color: textPrimary,
-                                fontFamily: 'Bold',
-                              ),
-                              TextWidget(
-                                text: user!.email,
-                                fontSize: 14,
-                                color: textLight,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    TextWidget(
+                      text: 'Survey Information',
+                      fontSize: 16,
+                      color: textPrimary,
+                      fontFamily: 'Bold',
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _buildInfoChip('Age: ${user!.age}', primary),
-                        const SizedBox(width: 8),
-                        _buildInfoChip('Gender: ${user!.gender}', primary),
-                        const SizedBox(width: 8),
-                        _buildInfoChip(
-                            'Status: ${user!.accountStatus.capitalize()}',
-                            user!.accountStatus == 'active'
-                                ? healthGreen
-                                : Colors.grey),
-                      ],
+                    _buildDetailRow('Response ID', response.responseId),
+                    _buildDetailRow('Survey ID', response.surveyId),
+                    _buildDetailRow('Submitted',
+                        '${response.submittedAt.day}/${response.submittedAt.month}/${response.submittedAt.year}'),
+                    _buildDetailRow(
+                        'Status', response.completionStatus.capitalize()),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          TextWidget(
+                            text: 'Risk Score',
+                            fontSize: 16,
+                            color: textPrimary,
+                            fontFamily: 'Bold',
+                          ),
+                          TextWidget(
+                            text:
+                                '${response.riskScore.toStringAsFixed(1)}/100',
+                            fontSize: 20,
+                            color: _getRiskColor(response.riskScore),
+                            fontFamily: 'Bold',
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 16),
-          ],
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+            TextWidget(
+              text: 'Survey Answers',
+              fontSize: 16,
+              color: textPrimary,
+              fontFamily: 'Bold',
             ),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: surface,
+            const SizedBox(height: 8),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextWidget(
-                    text: 'Survey Information',
-                    fontSize: 16,
-                    color: textPrimary,
-                    fontFamily: 'Bold',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildDetailRow('Response ID', response.responseId),
-                  _buildDetailRow('Survey ID', response.surveyId),
-                  _buildDetailRow('Submitted',
-                      '${response.submittedAt.day}/${response.submittedAt.month}/${response.submittedAt.year}'),
-                  _buildDetailRow(
-                      'Status', response.completionStatus.capitalize()),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        TextWidget(
-                          text: 'Risk Score',
-                          fontSize: 16,
-                          color: textPrimary,
-                          fontFamily: 'Bold',
-                        ),
-                        TextWidget(
-                          text: '${response.riskScore.toStringAsFixed(1)}/100',
-                          fontSize: 20,
-                          color: _getRiskColor(response.riskScore),
-                          fontFamily: 'Bold',
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextWidget(
-            text: 'Survey Answers',
-            fontSize: 16,
-            color: textPrimary,
-            fontFamily: 'Bold',
-          ),
-          const SizedBox(height: 8),
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: surface,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: response.answers.entries.map((entry) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: 150,
-                          child: TextWidget(
-                            text: entry.key.replaceAll('_', ' ').capitalize(),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: surface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: response.answers.entries.map((entry) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 150,
+                            child: TextWidget(
+                              text: entry.key.replaceAll('_', ' ').capitalize(),
+                              fontSize: 14,
+                              color: textLight,
+                            ),
+                          ),
+                          TextWidget(
+                            text: ':',
                             fontSize: 14,
                             color: textLight,
                           ),
-                        ),
-                        TextWidget(
-                          text: ':',
-                          fontSize: 14,
-                          color: textLight,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextWidget(
-                            text: entry.value.toString(),
-                            fontSize: 14,
-                            color: textPrimary,
-                            fontFamily: 'Medium',
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextWidget(
+                              text: entry.value.toString(),
+                              fontSize: 14,
+                              color: textPrimary,
+                              fontFamily: 'Medium',
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

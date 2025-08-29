@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class HealthMetrics {
   final String metricId;
@@ -33,8 +34,32 @@ class HealthMetrics {
       weight: (json['weight'] as num).toDouble(),
       height: (json['height'] as num).toDouble(),
       bmi: (json['bmi'] as num).toDouble(),
-      recordedAt: DateTime.parse(json['recordedAt'] as String),
+      recordedAt: _parseTimestamp(json['recordedAt']),
     );
+  }
+
+  static DateTime _parseTimestamp(dynamic timestamp) {
+    if (timestamp == null) {
+      return DateTime.now();
+    }
+    
+    // If it's already a DateTime, return it
+    if (timestamp is DateTime) {
+      return timestamp;
+    }
+    
+    // If it's a Timestamp object from Firebase
+    if (timestamp is Timestamp) {
+      return timestamp.toDate();
+    }
+    
+    // If it's a string, parse it
+    if (timestamp is String) {
+      return DateTime.parse(timestamp);
+    }
+    
+    // Default fallback
+    return DateTime.now();
   }
 
   Map<String, dynamic> toJson() {
@@ -47,7 +72,7 @@ class HealthMetrics {
       'weight': weight,
       'height': height,
       'bmi': bmi,
-      'recordedAt': recordedAt.toIso8601String(),
+      'recordedAt': recordedAt,
     };
   }
 }

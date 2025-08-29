@@ -1,7 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:survey_app/services/auth_service.dart';
 import 'package:survey_app/utils/colors.dart';
 import 'package:survey_app/widgets/button_widget.dart';
 import 'package:survey_app/widgets/text_widget.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class UserSignupScreen extends StatefulWidget {
   const UserSignupScreen({super.key});
@@ -19,9 +22,11 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
   final TextEditingController _ageController = TextEditingController();
   String _gender = 'Male';
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final AuthService _authService = AuthService();
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -45,11 +50,67 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
     });
   }
 
-  void _signup() {
+  void _signup() async {
     if (_formKey.currentState!.validate()) {
-      // In a real app, you would create the user account here
-      // For now, we'll just navigate back to the login screen
-      Navigator.pushReplacementNamed(context, '/user/login');
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        final UserCredential userCredential = await _authService.signup(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+          name: _nameController.text.trim(),
+          age: int.parse(_ageController.text),
+          gender: _gender,
+        );
+
+        if (userCredential.user != null) {
+          if (mounted) {
+            Fluttertoast.showToast(
+              msg: 'Account created successfully!',
+              backgroundColor: healthGreen,
+              textColor: Colors.white,
+            );
+            
+            // Navigate back to login screen
+            Navigator.pushReplacementNamed(context, '/user/login');
+          }
+        }
+      } on FirebaseAuthException catch (e) {
+        String message = 'Sign up failed';
+        if (e.code == 'email-already-in-use') {
+          message = 'An account already exists for this email';
+        } else if (e.code == 'invalid-email') {
+          message = 'Invalid email address';
+        } else if (e.code == 'operation-not-allowed') {
+          message = 'Email/password accounts are not enabled';
+        } else if (e.code == 'weak-password') {
+          message = 'Password is too weak';
+        }
+
+        if (mounted) {
+          Fluttertoast.showToast(
+            msg: message,
+            backgroundColor: healthRed,
+            textColor: Colors.white,
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          Fluttertoast.showToast(
+            msg: 'Sign up failed. Please try again.',
+            backgroundColor: healthRed,
+            textColor: Colors.white,
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -309,11 +370,13 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
                 ),
                 const SizedBox(height: 24),
                 // Signup button
-                ButtonWidget(
-                  label: 'Sign Up',
-                  onPressed: _signup,
-                  width: double.infinity,
-                ),
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator(color: primary))
+                    : ButtonWidget(
+                        label: 'Sign Up',
+                        onPressed: _signup,
+                        width: double.infinity,
+                      ),
                 const SizedBox(height: 24),
                 // Login link
                 Row(
