@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:survey_app/firebase_options.dart';
@@ -11,10 +13,13 @@ import 'package:survey_app/screens/admin/admin_login_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    name: 'bantaybp-bc1ae',
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
+      options: const FirebaseOptions(
+          apiKey: "AIzaSyBPIYY_xN5UXs8P5vbE9uouD3zpqrVZUWw",
+          authDomain: "bantaybp-bc1ae.firebaseapp.com",
+          projectId: "bantaybp-bc1ae",
+          storageBucket: "bantaybp-bc1ae.firebasestorage.app",
+          messagingSenderId: "524819277974",
+          appId: "1:524819277974:web:f9363079dce61ac104fab7"));
   runApp(const MyApp());
 }
 
