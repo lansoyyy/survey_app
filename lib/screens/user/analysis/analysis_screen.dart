@@ -12,6 +12,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'package:permission_handler/permission_handler.dart';
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({super.key});
@@ -23,7 +24,7 @@ class AnalysisScreen extends StatefulWidget {
 class _AnalysisScreenState extends State<AnalysisScreen> {
   final AuthService _authService = AuthService();
   final UserService _userService = UserService();
-  
+
   List<SurveyResponse> _surveyResponses = [];
   List<Map<String, dynamic>> _recommendations = [];
   List<Map<String, dynamic>> _trendData = [];
@@ -37,13 +38,14 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
   void _loadSurveyData() {
     if (_authService.currentUser == null) return;
-    
+
     setState(() {
       _isLoading = true;
     });
-    
+
     // Listen to survey responses
-    _userService.getUserSurveyResponses(_authService.currentUser!.uid).listen((responses) {
+    _userService.getUserSurveyResponses(_authService.currentUser!.uid).listen(
+        (responses) {
       setState(() {
         _surveyResponses = responses;
         _trendData = _convertToTrendData(responses);
@@ -64,56 +66,75 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     });
   }
 
-  List<Map<String, dynamic>> _convertToTrendData(List<SurveyResponse> responses) {
+  List<Map<String, dynamic>> _convertToTrendData(
+      List<SurveyResponse> responses) {
     List<Map<String, dynamic>> trendData = [];
-    
+
     // Take the last 6 responses for the trend chart
-    final recentResponses = responses.length > 6 ? responses.sublist(0, 6) : responses;
-    
+    final recentResponses =
+        responses.length > 6 ? responses.sublist(0, 6) : responses;
+
     for (int i = 0; i < recentResponses.length; i++) {
       final response = recentResponses[i];
       final month = _getMonthAbbreviation(response.submittedAt.month);
-      
+
       trendData.add({
         'month': month,
         'score': response.riskScore.toInt(),
       });
     }
-    
+
     return trendData;
   }
 
   String _getMonthAbbreviation(int month) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     return months[month - 1];
   }
 
-  List<Map<String, dynamic>> _generateRecommendations(List<SurveyResponse> responses) {
+  List<Map<String, dynamic>> _generateRecommendations(
+      List<SurveyResponse> responses) {
     if (responses.isEmpty) {
       return [
         {
           'title': 'Complete a Survey',
-          'description': 'Take the hypertension risk assessment survey to get personalized recommendations',
+          'description':
+              'Take the hypertension risk assessment survey to get personalized recommendations',
           'priority': 'high',
         },
       ];
     }
-    
+
     final latestResponse = responses.first;
     final riskScore = latestResponse.riskScore;
-    
+
     List<Map<String, dynamic>> recommendations = [];
-    
+
     if (riskScore >= 70) {
       recommendations.addAll([
         {
           'title': 'Immediate Medical Attention',
-          'description': 'Your risk score is very high. Consult with a healthcare professional immediately',
+          'description':
+              'Your risk score is very high. Consult with a healthcare professional immediately',
           'priority': 'high',
         },
         {
           'title': 'Medication Compliance',
-          'description': 'If prescribed medication, ensure you take it as directed',
+          'description':
+              'If prescribed medication, ensure you take it as directed',
           'priority': 'high',
         },
       ]);
@@ -121,7 +142,8 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       recommendations.addAll([
         {
           'title': 'Medical Consultation',
-          'description': 'Your risk score is high. Schedule an appointment with your doctor',
+          'description':
+              'Your risk score is high. Schedule an appointment with your doctor',
           'priority': 'high',
         },
       ]);
@@ -129,12 +151,13 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       recommendations.addAll([
         {
           'title': 'Lifestyle Changes',
-          'description': 'Your risk score is elevated. Implement lifestyle modifications',
+          'description':
+              'Your risk score is elevated. Implement lifestyle modifications',
           'priority': 'medium',
         },
       ]);
     }
-    
+
     // Add general recommendations
     recommendations.addAll([
       {
@@ -144,12 +167,14 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       },
       {
         'title': 'Regular Exercise',
-        'description': 'Engage in 30 minutes of moderate exercise 5 days a week',
+        'description':
+            'Engage in 30 minutes of moderate exercise 5 days a week',
         'priority': 'high',
       },
       {
         'title': 'Stress Management',
-        'description': 'Practice relaxation techniques like meditation or deep breathing',
+        'description':
+            'Practice relaxation techniques like meditation or deep breathing',
         'priority': 'medium',
       },
       {
@@ -163,7 +188,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         'priority': 'medium',
       },
     ]);
-    
+
     return recommendations;
   }
 
@@ -180,9 +205,12 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   }
 
   String _getRiskDescription(double score) {
-    if (score >= 70) return 'Your hypertension risk is high. Immediate action is recommended.';
-    if (score >= 50) return 'Your hypertension risk is moderate. Medical consultation is advised.';
-    if (score >= 30) return 'Your hypertension risk is elevated. Follow the recommendations to reduce your risk.';
+    if (score >= 70)
+      return 'Your hypertension risk is high. Immediate action is recommended.';
+    if (score >= 50)
+      return 'Your hypertension risk is moderate. Medical consultation is advised.';
+    if (score >= 30)
+      return 'Your hypertension risk is elevated. Follow the recommendations to reduce your risk.';
     return 'Your hypertension risk is low. Continue maintaining healthy habits.';
   }
 
@@ -296,6 +324,17 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   void _exportReport(String format) async {
     Navigator.of(context).pop(); // Close the bottom sheet
 
+    // Request storage permission
+    final status = await Permission.storage.request();
+    if (!status.isGranted) {
+      Fluttertoast.showToast(
+        msg: 'Storage permission is required to export reports',
+        backgroundColor: healthRed,
+        textColor: Colors.white,
+      );
+      return;
+    }
+
     // Show progress dialog
     showDialog(
       context: context,
@@ -327,7 +366,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
     try {
       final pdf = pw.Document();
-      
+
       // Add content to PDF
       pdf.addPage(
         pw.Page(
@@ -362,7 +401,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 pw.Container(
                   padding: const pw.EdgeInsets.all(10),
                   decoration: pw.BoxDecoration(
-                    border: pw.Border.all(),
+                    border: pw.Border.all(color: PdfColors.black),
                     borderRadius: pw.BorderRadius.circular(5),
                   ),
                   child: pw.Column(
@@ -399,7 +438,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                     margin: const pw.EdgeInsets.only(bottom: 10),
                     padding: const pw.EdgeInsets.all(10),
                     decoration: pw.BoxDecoration(
-                      border: pw.Border.all(),
+                      border: pw.Border.all(color: PdfColors.black),
                       borderRadius: pw.BorderRadius.circular(5),
                     ),
                     child: pw.Column(
@@ -456,11 +495,11 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       final dir = await getApplicationDocumentsDirectory();
       final file = File('${dir.path}/health_report.pdf');
       await file.writeAsBytes(await pdf.save());
-      
+
       // Close progress dialog
       if (mounted) {
         Navigator.of(context).pop();
-        
+
         // Show success message
         Fluttertoast.showToast(
           msg: 'Health report exported successfully to ${file.path}',
@@ -472,13 +511,25 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       // Close progress dialog
       if (mounted) {
         Navigator.of(context).pop();
-        
+
+        // Show detailed error message
+        String errorMessage = 'Failed to export health report';
+        if (e is FileSystemException) {
+          errorMessage =
+              'Storage permission denied. Please check app permissions.';
+        } else if (e is Exception) {
+          errorMessage = 'Export failed: ${e.toString()}';
+        }
+
         // Show error message
         Fluttertoast.showToast(
-          msg: 'Failed to export health report',
+          msg: errorMessage,
           backgroundColor: healthRed,
           textColor: Colors.white,
         );
+
+        // Also log to console for debugging
+        print('Export error: $e');
       }
     }
   }
@@ -627,7 +678,7 @@ class TrendChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (data.isEmpty) return;
-    
+
     final paint = Paint()
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
@@ -641,7 +692,8 @@ class TrendChartPainter extends CustomPainter {
 
     final double chartWidth = size.width - 40;
     final double chartHeight = size.height - 40;
-    final double pointSpacing = data.length > 1 ? chartWidth / (data.length - 1) : 0;
+    final double pointSpacing =
+        data.length > 1 ? chartWidth / (data.length - 1) : 0;
 
     // Find min and max values for scaling
     int minVal = 0;
