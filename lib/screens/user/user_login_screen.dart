@@ -15,7 +15,8 @@ class UserLoginScreen extends StatefulWidget {
 }
 
 class _UserLoginScreenState extends State<UserLoginScreen> {
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _identifierController =
+      TextEditingController(); // Changed from _emailController
   final TextEditingController _passwordController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final AuthService _authService = AuthService();
@@ -25,7 +26,7 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _identifierController.dispose(); // Changed from _emailController
     _passwordController.dispose();
     super.dispose();
   }
@@ -44,7 +45,7 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
 
       try {
         final UserCredential userCredential = await _authService.login(
-          _emailController.text.trim(),
+          _identifierController.text.trim(), // Changed from _emailController
           _passwordController.text,
         );
 
@@ -57,7 +58,7 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
       } on FirebaseAuthException catch (e) {
         String message = 'Authentication failed';
         if (e.code == 'user-not-found') {
-          message = 'No user found with this email';
+          message = 'No user found with this email or username';
         } else if (e.code == 'wrong-password') {
           message = 'Incorrect password';
         } else if (e.code == 'invalid-email') {
@@ -130,13 +131,14 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
                   color: textLight,
                 ),
                 const SizedBox(height: 32),
-                // Email field
+                // Email or Username field
                 TextFormField(
-                  controller: _emailController,
+                  controller:
+                      _identifierController, // Changed from _emailController
                   decoration: InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon:
-                        const Icon(Icons.email_outlined, color: primary),
+                    labelText: 'Email or Username', // Updated label
+                    prefixIcon: const Icon(Icons.person_outline,
+                        color: primary), // Changed icon
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -145,14 +147,13 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
                       vertical: 16,
                     ),
                   ),
-                  keyboardType: TextInputType.emailAddress,
+                  keyboardType: TextInputType
+                      .text, // Changed from TextInputType.emailAddress
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
+                      return 'Please enter your email or username';
                     }
-                    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                      return 'Please enter a valid email';
-                    }
+                    // Removed email validation since we now accept both email and username
                     return null;
                   },
                 ),

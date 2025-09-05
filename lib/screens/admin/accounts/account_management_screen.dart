@@ -66,8 +66,10 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
     // Apply search filter
     if (_searchQuery.isNotEmpty) {
       filtered = filtered.where((user) {
-        return user.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            user.email.toLowerCase().contains(_searchQuery.toLowerCase());
+        final name = user.name.toLowerCase();
+        final email = user.email.toLowerCase();
+        final search = _searchQuery.toLowerCase();
+        return name.contains(search) || email.contains(search);
       }).toList();
     }
 
@@ -277,14 +279,18 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                               leading: CircleAvatar(
                                 backgroundColor: primary.withOpacity(0.1),
                                 child: TextWidget(
-                                  text: user.name.substring(0, 1).toUpperCase(),
+                                  text: user.name.isNotEmpty
+                                      ? user.name.substring(0, 1).toUpperCase()
+                                      : 'U',
                                   fontSize: 18,
                                   color: primary,
                                   fontFamily: 'Bold',
                                 ),
                               ),
                               title: TextWidget(
-                                text: user.name,
+                                text: user.name.isNotEmpty
+                                    ? user.name
+                                    : 'Unknown',
                                 fontSize: 16,
                                 color: textPrimary,
                                 fontFamily: 'Bold',
@@ -293,7 +299,9 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   TextWidget(
-                                    text: user.email,
+                                    text: user.email.isNotEmpty
+                                        ? user.email
+                                        : 'No email',
                                     fontSize: 14,
                                     color: textLight,
                                   ),
@@ -313,7 +321,9 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                                               BorderRadius.circular(12),
                                         ),
                                         child: TextWidget(
-                                          text: user.accountStatus.capitalize(),
+                                          text: user.accountStatus.isNotEmpty
+                                              ? user.accountStatus.capitalize()
+                                              : 'Unknown',
                                           fontSize: 12,
                                           color: user.accountStatus == 'active'
                                               ? healthGreen

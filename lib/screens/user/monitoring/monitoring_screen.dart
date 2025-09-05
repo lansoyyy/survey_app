@@ -532,6 +532,55 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                         ),
                 ),
                 const SizedBox(height: 24),
+                TextWidget(
+                  text: 'Blood Pressure Classification',
+                  fontSize: 20,
+                  color: textPrimary,
+                  fontFamily: 'Bold',
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: grey),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildBpClassificationRow(
+                        'Normal',
+                        'Systolic: less than 120',
+                        'Diastolic: less than 80',
+                        healthGreen, // Green background
+                      ),
+                      _buildBpClassificationRow(
+                        'Prehypertension/Elevated',
+                        'Systolic: 120-129',
+                        'Diastolic: less than 80',
+                        Colors.yellow.shade100, // Yellow background
+                      ),
+                      _buildBpClassificationRow(
+                        'Stage 1 Hypertension',
+                        'Systolic: 130-139',
+                        'Diastolic: 80-89',
+                        Colors.orange.shade100, // Light red background
+                      ),
+                      _buildBpClassificationRow(
+                        'Stage 2 Hypertension',
+                        'Systolic: 140 or higher',
+                        'Diastolic: 90 or higher',
+                        Colors.red.shade200, // Darker red background
+                      ),
+                      _buildBpClassificationRow(
+                        'Hypertensive Crisis',
+                        'Systolic: higher than 180',
+                        'Diastolic: higher than 120',
+                        healthRed, // Darkest red background
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
                 Center(
                   child: ButtonWidget(
                     label: 'Add New Reading',
@@ -541,6 +590,56 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                 ),
               ],
             ),
+    );
+  }
+
+  // Helper method to build BP classification rows
+  Widget _buildBpClassificationRow(
+    String category,
+    String systolicRange,
+    String diastolicRange,
+    Color backgroundColor,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        border: const Border(
+          bottom: BorderSide(color: grey, width: 0.5),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: TextWidget(
+              text: category,
+              fontSize: 14,
+              color: textPrimary,
+              fontFamily: 'Bold',
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextWidget(
+                  text: systolicRange,
+                  fontSize: 12,
+                  color: textPrimary,
+                ),
+                const SizedBox(height: 4),
+                TextWidget(
+                  text: diastolicRange,
+                  fontSize: 12,
+                  color: textPrimary,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

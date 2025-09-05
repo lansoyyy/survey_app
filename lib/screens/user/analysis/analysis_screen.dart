@@ -112,7 +112,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         {
           'title': 'Complete a Survey',
           'description':
-              'Take the hypertension risk assessment survey to get personalized recommendations',
+              'Take the hypertension risk assessment survey to get personalized recommendations. This will help us understand your specific risk factors and provide targeted advice for improving your health. Completing the survey is the first step toward better health management.',
           'priority': 'high',
         },
       ];
@@ -120,6 +120,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
     final latestResponse = responses.first;
     final riskScore = latestResponse.riskScore;
+    final answers = latestResponse.answers;
 
     List<Map<String, dynamic>> recommendations = [];
 
@@ -128,13 +129,13 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         {
           'title': 'Immediate Medical Attention',
           'description':
-              'Your risk score is very high. Consult with a healthcare professional immediately',
+              'Your risk score is very high. Consult with a healthcare professional immediately. Early intervention can significantly improve your health outcomes and prevent complications. Do not delay in seeking professional medical advice.',
           'priority': 'high',
         },
         {
           'title': 'Medication Compliance',
           'description':
-              'If prescribed medication, ensure you take it as directed',
+              'If prescribed medication, ensure you take it as directed. Do not stop or change your dosage without consulting your doctor. Consistent medication use is crucial for managing your condition effectively. Proper adherence can significantly improve your health outcomes.',
           'priority': 'high',
         },
       ]);
@@ -143,7 +144,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         {
           'title': 'Medical Consultation',
           'description':
-              'Your risk score is high. Schedule an appointment with your doctor',
+              'Your risk score is high. Schedule an appointment with your doctor. Professional medical guidance will help you develop a comprehensive plan to address your risk factors and improve your health. Early consultation can prevent further complications.',
           'priority': 'high',
         },
       ]);
@@ -152,7 +153,241 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         {
           'title': 'Lifestyle Changes',
           'description':
-              'Your risk score is elevated. Implement lifestyle modifications',
+              'Your risk score is elevated. Implement lifestyle modifications to reduce your risk. Small changes can make a significant difference in your overall health and well-being. Focus on diet, exercise, and stress management for the best results.',
+          'priority': 'medium',
+        },
+      ]);
+    }
+
+    // Add personalized recommendations based on survey answers
+    if (latestResponse.surveyId == 'hypertension') {
+      // Smoking recommendation
+      if (answers['smoking'] == true) {
+        recommendations.add({
+          'title': 'Quit Smoking',
+          'description':
+              'Smoking significantly increases your hypertension risk. Consider smoking cessation programs or nicotine replacement therapy. Quitting smoking can improve your blood pressure and overall cardiovascular health within just a few weeks.',
+          'priority': 'high',
+        });
+      }
+
+      // Family history recommendation
+      if (answers['family_history'] == true) {
+        recommendations.add({
+          'title': 'Regular Health Screenings',
+          'description':
+              'With a family history of hypertension, regular monitoring is crucial. Schedule check-ups every 3-6 months. Early detection of changes in your blood pressure can help prevent serious complications.',
+          'priority': 'high',
+        });
+      }
+
+      // Stress management recommendation
+      final stressLevel = answers['stress_level'];
+      if (stressLevel is num && stressLevel >= 7) {
+        recommendations.add({
+          'title': 'Stress Reduction Techniques',
+          'description':
+              'Your high stress level contributes to hypertension risk. Try mindfulness, yoga, or counseling. Managing stress through relaxation techniques can have a positive impact on your blood pressure and overall well-being.',
+          'priority': 'medium',
+        });
+      }
+
+      // Exercise recommendation
+      final exerciseFreq = answers['exercise_frequency'];
+      if (exerciseFreq == 'Never' || exerciseFreq == 'Rarely') {
+        recommendations.add({
+          'title': 'Increase Physical Activity',
+          'description':
+              'Regular exercise helps lower blood pressure. Start with 10-15 minutes of walking daily. Gradually increase your activity level as your fitness improves to maximize cardiovascular benefits.',
+          'priority': 'high',
+        });
+      }
+
+      // Medication recommendation
+      if (answers['medications'] == true) {
+        recommendations.add({
+          'title': 'Medication Adherence',
+          'description':
+              'Continue taking your blood pressure medications as prescribed. Never stop without consulting your doctor. Proper medication management is essential for controlling hypertension and preventing complications.',
+          'priority': 'high',
+        });
+      }
+
+      // Conditions recommendation
+      final conditions = answers['conditions'];
+      if (conditions is List &&
+          conditions.isNotEmpty &&
+          !conditions.contains('None')) {
+        recommendations.add({
+          'title': 'Comprehensive Health Management',
+          'description':
+              'Managing co-existing conditions like diabetes or heart disease is important for overall cardiovascular health. Work with your healthcare team to coordinate care for all your conditions. Proper management can reduce the risk of complications.',
+          'priority': 'high',
+        });
+      }
+
+      // Additional hypertension recommendations
+      recommendations.addAll([
+        {
+          'title': 'Reduce Sodium Intake',
+          'description':
+              'Limit sodium to less than 1,500mg per day. Avoid processed foods and use herbs and spices for flavoring instead of salt. Reducing sodium intake can significantly lower your blood pressure and reduce strain on your heart.',
+          'priority': 'high',
+        },
+        {
+          'title': 'Increase Potassium-Rich Foods',
+          'description':
+              'Include foods like bananas, oranges, spinach, and sweet potatoes which can help counteract sodium\'s effects on blood pressure. Potassium helps your body eliminate excess sodium and ease tension in blood vessel walls.',
+          'priority': 'medium',
+        },
+        {
+          'title': 'Limit Caffeine',
+          'description':
+              'Caffeine can temporarily raise blood pressure. Monitor your intake and consider reducing consumption if sensitive. Try switching to decaffeinated beverages or herbal teas to reduce your overall caffeine consumption.',
+          'priority': 'medium',
+        },
+        {
+          'title': 'Mindful Eating',
+          'description':
+              'Practice portion control and eat slowly. Overeating can temporarily raise blood pressure. Pay attention to hunger and fullness cues to maintain a healthy weight and support cardiovascular health.',
+          'priority': 'medium',
+        },
+      ]);
+    } else if (latestResponse.surveyId == 'diabetes') {
+      // High blood pressure recommendation for diabetes patients
+      if (answers['diabetes_high_bp'] == true) {
+        recommendations.add({
+          'title': 'Blood Pressure Management',
+          'description':
+              'Managing both diabetes and hypertension is crucial. Monitor both regularly. Controlling both conditions together can significantly reduce your risk of heart disease, stroke, and kidney problems.',
+          'priority': 'high',
+        });
+      }
+
+      // Diet recommendation for diabetes patients
+      final diet = answers['diabetes_diet'];
+      if (diet == 'Poor' || diet == 'Fair') {
+        recommendations.add({
+          'title': 'Improve Dietary Habits',
+          'description':
+              'A healthy diet is essential for diabetes management. Focus on whole grains, lean proteins, and vegetables. Work with a dietitian to create a meal plan that helps control your blood sugar and supports overall health.',
+          'priority': 'high',
+        });
+      }
+
+      // Physical activity recommendation for diabetes patients
+      final activity = answers['diabetes_physical_activity'];
+      if (activity == 'Never' || activity == 'Rarely') {
+        recommendations.add({
+          'title': 'Increase Physical Activity',
+          'description':
+              'Regular exercise helps manage blood sugar levels. Aim for at least 150 minutes of moderate activity per week. Physical activity increases insulin sensitivity and helps your muscles use glucose for energy.',
+          'priority': 'high',
+        });
+      }
+
+      // Smoking recommendation for diabetes patients
+      if (answers['diabetes_smoking'] == true) {
+        recommendations.add({
+          'title': 'Quit Smoking',
+          'description':
+              'Smoking increases complications in diabetes patients. Seek support to quit smoking. Quitting can improve circulation, reduce inflammation, and lower your risk of diabetes-related complications.',
+          'priority': 'high',
+        });
+      }
+
+      // Additional diabetes recommendations
+      recommendations.addAll([
+        {
+          'title': 'Monitor Blood Sugar Levels',
+          'description':
+              'Check your blood glucose regularly as recommended by your healthcare provider. Keep a log of your readings. Monitoring helps you understand how food, activity, and medication affect your blood sugar levels.',
+          'priority': 'high',
+        },
+        {
+          'title': 'Foot Care',
+          'description':
+              'Inspect your feet daily for cuts, sores, or swelling. Proper foot care can prevent serious complications. Diabetes can reduce blood flow to your feet and cause nerve damage, making foot problems more likely.',
+          'priority': 'medium',
+        },
+        {
+          'title': 'Stay Hydrated',
+          'description':
+              'Drink plenty of water to help your kidneys flush out excess glucose through urine. Proper hydration supports all bodily functions and helps maintain stable blood sugar levels throughout the day.',
+          'priority': 'low',
+        },
+        {
+          'title': 'Regular Eye Exams',
+          'description':
+              'Diabetes can affect your eyes. Schedule annual eye exams to detect and treat problems early. Diabetic retinopathy can lead to vision loss if not caught and treated early.',
+          'priority': 'medium',
+        },
+      ]);
+    } else if (latestResponse.surveyId == 'heart_disease') {
+      // Chest pain recommendation
+      if (answers['heart_chest_pain'] == true) {
+        recommendations.add({
+          'title': 'Chest Pain Monitoring',
+          'description':
+              'Report any chest pain immediately to your healthcare provider. Chest pain can be a sign of a heart problem that needs immediate attention. Do not ignore or delay seeking medical care for chest discomfort.',
+          'priority': 'high',
+        });
+      }
+
+      // Diabetes recommendation for heart disease patients
+      if (answers['heart_diabetes'] == true) {
+        recommendations.add({
+          'title': 'Diabetes Management',
+          'description':
+              'Managing diabetes is crucial for heart health. Monitor blood sugar levels regularly. Keeping blood sugar under control can reduce the risk of further heart complications and improve overall cardiovascular health.',
+          'priority': 'high',
+        });
+      }
+
+      // Smoking recommendation for heart disease patients
+      if (answers['heart_smoking'] == true) {
+        recommendations.add({
+          'title': 'Quit Smoking',
+          'description':
+              'Smoking is a major risk factor for heart disease. Seek immediate help to quit smoking. Quitting smoking is one of the most important steps you can take to improve your heart health and prevent future cardiac events.',
+          'priority': 'high',
+        });
+      }
+
+      // High blood pressure recommendation for heart disease patients
+      if (answers['heart_high_bp'] == true) {
+        recommendations.add({
+          'title': 'Blood Pressure Control',
+          'description':
+              'Controlling blood pressure is essential for heart health. Monitor regularly and follow medical advice. Proper blood pressure management can reduce the workload on your heart and prevent further damage.',
+          'priority': 'high',
+        });
+      }
+
+      // Additional heart disease recommendations
+      recommendations.addAll([
+        {
+          'title': 'Healthy Fats',
+          'description':
+              'Include omega-3 fatty acids from fish like salmon and mackerel. Avoid trans fats and limit saturated fats. Healthy fats can help reduce inflammation and lower your risk of heart disease while providing essential nutrients.',
+          'priority': 'high',
+        },
+        {
+          'title': 'Manage Cholesterol',
+          'description':
+              'Keep your cholesterol levels in check through diet, exercise, and medication if prescribed. High cholesterol can lead to plaque buildup in your arteries, increasing the risk of heart attack and stroke.',
+          'priority': 'high',
+        },
+        {
+          'title': 'Know Your Numbers',
+          'description':
+              'Regularly monitor blood pressure, cholesterol, and blood sugar. Understanding these numbers helps manage heart health. Keep track of your health metrics and discuss them with your healthcare provider regularly.',
+          'priority': 'medium',
+        },
+        {
+          'title': 'Get Quality Sleep',
+          'description':
+              'Aim for 7-9 hours of sleep per night. Poor sleep is linked to higher risk of heart disease. Good sleep helps regulate stress hormones and blood pressure, supporting cardiovascular health.',
           'priority': 'medium',
         },
       ]);
@@ -162,30 +397,52 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     recommendations.addAll([
       {
         'title': 'Dietary Changes',
-        'description': 'Reduce sodium intake to less than 2,300mg per day',
+        'description':
+            'Reduce sodium intake to less than 2,300mg per day. Focus on fresh fruits, vegetables, whole grains, and lean proteins. A heart-healthy diet can help manage weight, blood pressure, and cholesterol levels.',
         'priority': 'high',
       },
       {
         'title': 'Regular Exercise',
         'description':
-            'Engage in 30 minutes of moderate exercise 5 days a week',
+            'Engage in 30 minutes of moderate exercise 5 days a week. Activities like brisk walking, swimming, or cycling can strengthen your heart and improve circulation. Start slowly and gradually increase intensity as your fitness improves.',
         'priority': 'high',
       },
       {
         'title': 'Stress Management',
         'description':
-            'Practice relaxation techniques like meditation or deep breathing',
+            'Practice relaxation techniques like meditation or deep breathing. Chronic stress can contribute to high blood pressure and other heart problems. Find healthy ways to manage stress such as hobbies, socializing, or relaxation exercises.',
         'priority': 'medium',
       },
       {
         'title': 'Regular Monitoring',
-        'description': 'Check your blood pressure at least once a week',
+        'description':
+            'Check your blood pressure at least once a week. Regular monitoring helps track progress and identify any concerning changes early. Keep a log of your readings to share with your healthcare provider.',
         'priority': 'high',
       },
       {
         'title': 'Adequate Sleep',
-        'description': 'Aim for 7-9 hours of quality sleep each night',
+        'description':
+            'Aim for 7-9 hours of quality sleep each night. Sleep is essential for heart health and overall well-being. Poor sleep can negatively affect blood pressure, weight, and stress hormone levels.',
         'priority': 'medium',
+      },
+      // Additional general recommendations
+      {
+        'title': 'Limit Alcohol Consumption',
+        'description':
+            'Excessive alcohol can raise blood pressure. Limit to moderate amounts (up to one drink per day for women, two for men). If you choose to drink, do so in moderation and be aware of how alcohol affects your health.',
+        'priority': 'medium',
+      },
+      {
+        'title': 'Maintain a Healthy Weight',
+        'description':
+            'Achieving and maintaining a healthy weight can significantly reduce hypertension risk. Even a small weight loss can have positive effects on blood pressure and overall health. Focus on gradual, sustainable changes to your diet and activity level.',
+        'priority': 'high',
+      },
+      {
+        'title': 'Stay Hydrated',
+        'description':
+            'Drink plenty of water throughout the day to support cardiovascular health. Proper hydration helps maintain blood volume and supports heart function. Limit sugary drinks and excessive caffeine which can negatively impact heart health.',
+        'priority': 'low',
       },
     ]);
 
@@ -556,6 +813,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   description: _getRiskDescription(_getLatestRiskScore()),
                 ),
                 const SizedBox(height: 24),
+                // Add the hypertension result image section
+                _buildHypertensionResultImage(),
+                const SizedBox(height: 24),
                 TextWidget(
                   text: 'Personalized Recommendations',
                   fontSize: 20,
@@ -667,6 +927,112 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               ],
             ),
     );
+  }
+
+  // Helper method to build the hypertension result image section
+  Widget _buildHypertensionResultImage() {
+    if (_surveyResponses.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final latestResponse = _surveyResponses.first;
+
+    // Check if this is a hypertension survey
+    if (latestResponse.surveyId != 'hypertension') {
+      return const SizedBox.shrink();
+    }
+
+    // Get age from the survey response
+    final age = latestResponse.answers['age'];
+    if (age == null) {
+      return const SizedBox.shrink();
+    }
+
+    // Determine age group
+    final ageGroup = _getAgeGroup(age);
+
+    // Determine if user has hypertension based on risk score
+    final hasHypertension = _getLatestRiskScore() >=
+        30; // Using 30 as threshold for hypertension risk
+
+    // Construct image path
+    final imagePath = hasHypertension
+        ? 'assets/images/With Hypertension/$ageGroup with HPN.png'
+        : 'assets/images/Without Hypertension/$ageGroup without HPN.png';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextWidget(
+          text: 'Your Hypertension Risk Visualization',
+          fontSize: 20,
+          color: textPrimary,
+          fontFamily: 'Bold',
+        ),
+        const SizedBox(height: 16),
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Image.asset(
+                  imagePath,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(height: 16),
+                TextWidget(
+                  text: hasHypertension
+                      ? 'Based on your assessment, you are at risk for hypertension.'
+                      : 'Based on your assessment, you are not at risk for hypertension.',
+                  fontSize: 14,
+                  color: textPrimary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper method to determine age group
+  String _getAgeGroup(dynamic age) {
+    int ageValue;
+
+    if (age is String) {
+      ageValue = int.tryParse(age) ?? 0;
+    } else if (age is int) {
+      ageValue = age;
+    } else if (age is double) {
+      ageValue = age.toInt();
+    } else {
+      ageValue = 0;
+    }
+
+    if (ageValue >= 20 && ageValue <= 29) {
+      return '20-29 y.o.';
+    } else if (ageValue >= 30 && ageValue <= 39) {
+      return '30-39 y.o.';
+    } else if (ageValue >= 40 && ageValue <= 49) {
+      return '40-49 y.o.';
+    } else if (ageValue >= 50 && ageValue <= 59) {
+      return '50-59 y.o.';
+    } else if (ageValue >= 60 && ageValue <= 69) {
+      return '60-69 y.o.';
+    } else if (ageValue >= 70 && ageValue <= 79) {
+      return '70-79 y.o.';
+    } else {
+      // Default to a safe age group
+      return '30-39 y.o.';
+    }
   }
 }
 

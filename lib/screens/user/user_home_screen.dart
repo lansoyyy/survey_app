@@ -18,15 +18,26 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   int _currentIndex = 0;
   final AuthService _authService = AuthService();
 
-  final List<Widget> _screens = [
-    const SurveyScreen(),
-    const MonitoringScreen(),
-    const AnalysisScreen(),
-  ];
+  late List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      SurveyScreen(),
+      const MonitoringScreen(),
+      const AnalysisScreen(),
+    ];
+  }
 
   void _onTabTapped(int index) {
     setState(() {
       _currentIndex = index;
+
+      // If we're going back to the survey screen, recreate it to ensure proper state
+      if (index == 0) {
+        _screens[0] = SurveyScreen();
+      }
     });
   }
 
@@ -41,7 +52,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   Widget build(BuildContext context) {
     // Instead of using StreamBuilder, we'll check if user is authenticated directly
     final user = _authService.currentUser;
-    
+
     // If user is not authenticated, redirect to login
     if (user == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

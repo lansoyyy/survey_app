@@ -11,6 +11,7 @@ class SurveyQuestionCard extends StatefulWidget {
   final bool isRequired;
   final Function(dynamic) onAnswerChanged;
   final dynamic currentValue;
+  final Function()? onClearTextField;
 
   const SurveyQuestionCard({
     super.key,
@@ -21,6 +22,7 @@ class SurveyQuestionCard extends StatefulWidget {
     required this.isRequired,
     required this.onAnswerChanged,
     this.currentValue,
+    this.onClearTextField,
   });
 
   @override
@@ -34,23 +36,48 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
   @override
   void initState() {
     super.initState();
-    _textController = TextEditingController();
-    
+    _textController = TextEditingController(
+        text: widget.currentValue is String
+            ? widget.currentValue as String
+            : null);
+
     // Initialize _multipleChoiceSelections only for multiple_choice questions
     if (widget.questionType == 'multiple_choice' && widget.options != null) {
-      _multipleChoiceSelections = List<bool>.filled(widget.options!.length, false);
-      
+      _multipleChoiceSelections =
+          List<bool>.filled(widget.options!.length, false);
+
       // Initialize selections if we have current values
       if (widget.currentValue != null && widget.currentValue is List) {
         for (int i = 0; i < widget.options!.length; i++) {
-          _multipleChoiceSelections![i] = widget.currentValue.contains(widget.options![i]);
+          _multipleChoiceSelections![i] =
+              widget.currentValue.contains(widget.options![i]);
         }
       }
     }
-    
-    // Set initial text value if provided
-    if (widget.currentValue != null && widget.currentValue is String) {
+  }
+
+  @override
+  void didUpdateWidget(covariant SurveyQuestionCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Update the text controller value if the current value changes
+    if (widget.currentValue != null &&
+        widget.currentValue is String &&
+        _textController.text != widget.currentValue) {
       _textController.text = widget.currentValue;
+    } else if (widget.currentValue == null && _textController.text.isNotEmpty) {
+      _textController.clear();
+    }
+
+    // For non-string values, clear if needed
+    if (widget.currentValue == null &&
+        widget.questionType != 'multiple_choice' &&
+        widget.questionType != 'single_choice' &&
+        widget.questionType != 'boolean' &&
+        widget.questionType != 'scale_rating' &&
+        widget.questionType != 'date' &&
+        _textController.text.isNotEmpty) {
+      _textController.clear();
     }
   }
 
@@ -58,6 +85,13 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
   void dispose() {
     _textController.dispose();
     super.dispose();
+  }
+
+  // Method to clear the text field
+  void clearTextField() {
+    setState(() {
+      _textController.clear();
+    });
   }
 
   @override
@@ -100,6 +134,29 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
     );
   }
 
+  void _handleTextAnswer(String value) {
+    // For number inputs
+    if (widget.questionType == 'number') {
+      if (value.isNotEmpty) {
+        final number = int.tryParse(value);
+        if (number != null) {
+          widget.onAnswerChanged(number);
+        } else {
+          widget.onAnswerChanged(null);
+        }
+      } else {
+        widget.onAnswerChanged(null);
+      }
+    } else {
+      // For text inputs
+      if (value.isNotEmpty) {
+        widget.onAnswerChanged(value);
+      } else {
+        widget.onAnswerChanged(null);
+      }
+    }
+  }
+
   Widget _buildQuestionInput() {
     switch (widget.questionType) {
       case 'number':
@@ -108,29 +165,26 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
           labelText: 'Enter number',
           keyboardType: TextInputType.number,
           textInputAction: TextInputAction.next,
-          onChanged: (value) {
-            if (value.isNotEmpty) {
-              final number = int.tryParse(value);
-              if (number != null) {
-                widget.onAnswerChanged(number);
-              }
-            } else {
-              widget.onAnswerChanged(null);
-            }
+          onChanged: _handleTextAnswer,
+          onEditingComplete: () {
+            // Move to next question when editing is complete
+            FocusScope.of(context).unfocus();
           },
         );
-      
+
       case 'text':
         return AppTextFormField(
           controller: _textController,
           labelText: 'Enter text',
           keyboardType: TextInputType.text,
           textInputAction: TextInputAction.next,
-          onChanged: (value) {
-            widget.onAnswerChanged(value.isEmpty ? null : value);
+          onChanged: _handleTextAnswer,
+          onEditingComplete: () {
+            // Move to next question when editing is complete
+            FocusScope.of(context).unfocus();
           },
         );
-      
+
       case 'boolean':
         return Row(
           children: [
@@ -141,7 +195,8 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
                   setState(() {});
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: widget.currentValue == true ? primary : surface,
+                  backgroundColor:
+                      widget.currentValue == true ? primary : surface,
                   side: BorderSide(color: primary),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -163,7 +218,8 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
                   setState(() {});
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: widget.currentValue == false ? primary : surface,
+                  backgroundColor:
+                      widget.currentValue == false ? primary : surface,
                   side: BorderSide(color: primary),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -179,7 +235,7 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
             ),
           ],
         );
-      
+
       case 'single_choice':
         if (widget.options == null) return const SizedBox();
         return Column(
@@ -200,13 +256,12 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
             );
           }).toList(),
         );
-      
+
       case 'multiple_choice':
         if (widget.options == null) return const SizedBox();
         // Ensure _multipleChoiceSelections is initialized
-        if (_multipleChoiceSelections == null) {
-          _multipleChoiceSelections = List<bool>.filled(widget.options!.length, false);
-        }
+        _multipleChoiceSelections ??=
+            List<bool>.filled(widget.options!.length, false);
         return Column(
           children: List.generate(widget.options!.length, (index) {
             return CheckboxListTile(
@@ -219,7 +274,7 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
               onChanged: (bool? value) {
                 setState(() {
                   _multipleChoiceSelections![index] = value ?? false;
-                  
+
                   // Collect all selected options
                   final selectedOptions = <String>[];
                   for (int i = 0; i < widget.options!.length; i++) {
@@ -227,15 +282,16 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
                       selectedOptions.add(widget.options![i]);
                     }
                   }
-                  
-                  widget.onAnswerChanged(selectedOptions.isEmpty ? null : selectedOptions);
+
+                  widget.onAnswerChanged(
+                      selectedOptions.isEmpty ? null : selectedOptions);
                 });
               },
               activeColor: primary,
             );
           }),
         );
-      
+
       case 'scale_rating':
         return Column(
           children: [
@@ -244,7 +300,9 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
               min: 0,
               max: 10,
               divisions: 10,
-              label: (widget.currentValue is double ? widget.currentValue : 0.0).round().toString(),
+              label: (widget.currentValue is double ? widget.currentValue : 0.0)
+                  .round()
+                  .toString(),
               onChanged: (double value) {
                 widget.onAnswerChanged(value);
                 setState(() {});
@@ -274,13 +332,15 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
             ),
           ],
         );
-      
+
       case 'date':
         return GestureDetector(
           onTap: () async {
             final DateTime? picked = await showDatePicker(
               context: context,
-              initialDate: widget.currentValue is DateTime ? widget.currentValue : DateTime.now(),
+              initialDate: widget.currentValue is DateTime
+                  ? widget.currentValue
+                  : DateTime.now(),
               firstDate: DateTime(1900),
               lastDate: DateTime(2100),
               builder: (BuildContext context, Widget? child) {
@@ -300,7 +360,7 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
                 );
               },
             );
-            
+
             if (picked != null) {
               widget.onAnswerChanged(picked);
               setState(() {});
@@ -316,26 +376,29 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 TextWidget(
-                  text: widget.currentValue is DateTime 
-                    ? '${(widget.currentValue as DateTime).day}/${(widget.currentValue as DateTime).month}/${(widget.currentValue as DateTime).year}'
-                    : 'Select date',
+                  text: widget.currentValue is DateTime
+                      ? '${(widget.currentValue as DateTime).day}/${(widget.currentValue as DateTime).month}/${(widget.currentValue as DateTime).year}'
+                      : 'Select date',
                   fontSize: 16,
-                  color: widget.currentValue is DateTime ? textPrimary : textLight,
+                  color:
+                      widget.currentValue is DateTime ? textPrimary : textLight,
                 ),
                 Icon(Icons.calendar_today, color: primary),
               ],
             ),
           ),
         );
-      
+
       default:
         return AppTextFormField(
           controller: _textController,
           labelText: 'Enter answer',
           keyboardType: TextInputType.text,
           textInputAction: TextInputAction.next,
-          onChanged: (value) {
-            widget.onAnswerChanged(value.isEmpty ? null : value);
+          onChanged: _handleTextAnswer,
+          onEditingComplete: () {
+            // Move to next question when editing is complete
+            FocusScope.of(context).unfocus();
           },
         );
     }

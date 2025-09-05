@@ -16,6 +16,8 @@ class UserSignupScreen extends StatefulWidget {
 class _UserSignupScreenState extends State<UserSignupScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _usernameController =
+      TextEditingController(); // New username controller
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
@@ -32,6 +34,7 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _usernameController.dispose(); // Dispose username controller
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _ageController.dispose();
@@ -57,12 +60,29 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
       });
 
       try {
+        // Check if we have either email or username
+        final hasEmail = _emailController.text.trim().isNotEmpty;
+        final hasUsername = _usernameController.text.trim().isNotEmpty;
+
+        // This should not happen due to validation, but just in case
+        if (!hasEmail && !hasUsername) {
+          throw FirebaseAuthException(
+            code: 'missing-identifier',
+            message: 'Either email or username is required',
+          );
+        }
+
         final UserCredential userCredential = await _authService.signup(
-          email: _emailController.text.trim(),
+          email: hasEmail
+              ? _emailController.text.trim()
+              : '', // Pass empty string if no email
           password: _passwordController.text,
           name: _nameController.text.trim(),
           age: int.parse(_ageController.text),
           gender: _gender,
+          username: hasUsername
+              ? _usernameController.text.trim()
+              : null, // Pass username if provided
         );
 
         if (userCredential.user != null) {
@@ -72,7 +92,7 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
               backgroundColor: healthGreen,
               textColor: Colors.white,
             );
-            
+
             // Navigate back to login screen
             Navigator.pushReplacementNamed(context, '/user/login');
           }
@@ -87,6 +107,10 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
           message = 'Email/password accounts are not enabled';
         } else if (e.code == 'weak-password') {
           message = 'Password is too weak';
+        } else if (e.code == 'username-already-in-use') {
+          message = 'This username is already taken';
+        } else if (e.code == 'missing-identifier') {
+          message = 'Either email or username is required';
         }
 
         if (mounted) {
@@ -188,6 +212,45 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
+                // Username field
+                TextFormField(
+                  controller: _usernameController,
+                  decoration: InputDecoration(
+                    labelText: 'Username',
+                    prefixIcon:
+                        const Icon(Icons.alternate_email, color: primary),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                  ),
+                  validator: (value) {
+                    final hasEmail = _emailController.text.trim().isNotEmpty;
+
+                    // If no email is provided, username is required
+                    if (!hasEmail && (value == null || value.isEmpty)) {
+                      return 'Please enter a username or email';
+                    }
+
+                    // If username is provided, validate it
+                    if (value != null && value.isNotEmpty) {
+                      if (value.length < 3) {
+                        return 'Username must be at least 3 characters';
+                      }
+                      if (value.length > 20) {
+                        return 'Username must be less than 20 characters';
+                      }
+                      if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
+                        return 'Username can only contain letters, numbers, and underscores';
+                      }
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
                 // Email field
                 TextFormField(
                   controller: _emailController,
@@ -205,11 +268,19 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
+                    final hasUsername =
+                        _usernameController.text.trim().isNotEmpty;
+
+                    // If no username is provided, email is required
+                    if (!hasUsername && (value == null || value.isEmpty)) {
+                      return 'Please enter an email or username';
                     }
-                    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                      return 'Please enter a valid email';
+
+                    // If email is provided, validate it
+                    if (value != null && value.isNotEmpty) {
+                      if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                        return 'Please enter a valid email';
+                      }
                     }
                     return null;
                   },
@@ -371,7 +442,8 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
                 const SizedBox(height: 24),
                 // Signup button
                 _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: primary))
+                    ? const Center(
+                        child: CircularProgressIndicator(color: primary))
                     : ButtonWidget(
                         label: 'Sign Up',
                         onPressed: _signup,

@@ -10,6 +10,7 @@ class UserProfile {
   final DateTime registrationDate;
   final DateTime lastLogin;
   final String accountStatus; // active/inactive
+  final String? username; // Optional username field
 
   UserProfile({
     required this.userId,
@@ -20,18 +21,20 @@ class UserProfile {
     required this.registrationDate,
     required this.lastLogin,
     required this.accountStatus,
+    this.username, // Optional username parameter
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
-      userId: json['userId'] as String,
-      name: json['name'] as String,
-      email: json['email'] as String,
-      age: json['age'] as int,
-      gender: json['gender'] as String,
+      userId: json['userId'] as String? ?? '',
+      name: json['name'] as String? ?? 'Unknown',
+      email: json['email'] as String? ?? '',
+      age: json['age'] as int? ?? 0,
+      gender: json['gender'] as String? ?? 'Unknown',
       registrationDate: _parseTimestamp(json['registrationDate']),
       lastLogin: _parseTimestamp(json['lastLogin']),
-      accountStatus: json['accountStatus'] as String,
+      accountStatus: json['accountStatus'] as String? ?? 'inactive',
+      username: json['username'] as String?, // Optional username field
     );
   }
 
@@ -39,36 +42,47 @@ class UserProfile {
     if (timestamp == null) {
       return DateTime.now();
     }
-    
+
     // If it's already a DateTime, return it
     if (timestamp is DateTime) {
       return timestamp;
     }
-    
+
     // If it's a Timestamp object from Firebase
     if (timestamp is Timestamp) {
       return timestamp.toDate();
     }
-    
+
     // If it's a string, parse it
     if (timestamp is String) {
       return DateTime.parse(timestamp);
     }
-    
+
     // Default fallback
     return DateTime.now();
   }
 
   Map<String, dynamic> toJson() {
-    return {
+    final Map<String, dynamic> json = {
       'userId': userId,
       'name': name,
-      'email': email,
       'age': age,
       'gender': gender,
       'registrationDate': registrationDate,
       'lastLogin': lastLogin,
       'accountStatus': accountStatus,
     };
+
+    // Only include email if it's not empty
+    if (email.isNotEmpty) {
+      json['email'] = email;
+    }
+
+    // Only include username if it exists
+    if (username != null) {
+      json['username'] = username;
+    }
+
+    return json;
   }
 }
