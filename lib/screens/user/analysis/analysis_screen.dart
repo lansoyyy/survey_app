@@ -124,7 +124,43 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
     List<Map<String, dynamic>> recommendations = [];
 
-    if (riskScore >= 70) {
+    // Updated risk level interpretation based on new scoring system
+    if (latestResponse.surveyId == 'hypertension') {
+      if (riskScore >= 13) {
+        recommendations.addAll([
+          {
+            'title': 'Immediate Medical Attention',
+            'description':
+                'Your risk score indicates a high risk for hypertension. Consult with a healthcare professional immediately. Early intervention can significantly improve your health outcomes and prevent complications. Do not delay in seeking professional medical advice.',
+            'priority': 'high',
+          },
+          {
+            'title': 'Medication Compliance',
+            'description':
+                'If prescribed medication, ensure you take it as directed. Do not stop or change your dosage without consulting your doctor. Consistent medication use is crucial for managing your condition effectively. Proper adherence can significantly improve your health outcomes.',
+            'priority': 'high',
+          },
+        ]);
+      } else if (riskScore >= 7) {
+        recommendations.addAll([
+          {
+            'title': 'Medical Consultation',
+            'description':
+                'Your risk score indicates a moderate risk for hypertension. Schedule an appointment with your doctor. Professional medical guidance will help you develop a comprehensive plan to address your risk factors and improve your health. Early consultation can prevent further complications.',
+            'priority': 'high',
+          },
+        ]);
+      } else {
+        recommendations.addAll([
+          {
+            'title': 'Maintain Healthy Habits',
+            'description':
+                'Your risk score indicates a low risk for hypertension. Continue maintaining your healthy habits. Regular monitoring and consistent healthy practices will help you maintain your low risk status. Prevention is always better than treatment.',
+            'priority': 'medium',
+          },
+        ]);
+      }
+    } else if (riskScore >= 75) {
       recommendations.addAll([
         {
           'title': 'Immediate Medical Attention',
@@ -148,12 +184,12 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           'priority': 'high',
         },
       ]);
-    } else if (riskScore >= 30) {
+    } else {
       recommendations.addAll([
         {
-          'title': 'Lifestyle Changes',
+          'title': 'Maintain Healthy Habits',
           'description':
-              'Your risk score is elevated. Implement lifestyle modifications to reduce your risk. Small changes can make a significant difference in your overall health and well-being. Focus on diet, exercise, and stress management for the best results.',
+              'Your risk score is low. Continue maintaining your healthy habits. Regular monitoring and consistent healthy practices will help you maintain your low risk status. Prevention is always better than treatment.',
           'priority': 'medium',
         },
       ]);
@@ -162,7 +198,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     // Add personalized recommendations based on survey answers
     if (latestResponse.surveyId == 'hypertension') {
       // Smoking recommendation
-      if (answers['smoking'] == true) {
+      if (answers['smoking'] == 'Yes') {
         recommendations.add({
           'title': 'Quit Smoking',
           'description':
@@ -172,7 +208,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       }
 
       // Family history recommendation
-      if (answers['family_history'] == true) {
+      if (answers['family_history'] == 'Yes') {
         recommendations.add({
           'title': 'Regular Health Screenings',
           'description':
@@ -182,8 +218,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       }
 
       // Stress management recommendation
-      final stressLevel = answers['stress_level'];
-      if (stressLevel is num && stressLevel >= 7) {
+      if (answers['stress'] == 'Often or daily') {
         recommendations.add({
           'title': 'Stress Reduction Techniques',
           'description':
@@ -193,8 +228,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       }
 
       // Exercise recommendation
-      final exerciseFreq = answers['exercise_frequency'];
-      if (exerciseFreq == 'Never' || exerciseFreq == 'Rarely') {
+      if (answers['physical_activity'] == 'Rarely / Not at all') {
         recommendations.add({
           'title': 'Increase Physical Activity',
           'description':
@@ -204,7 +238,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       }
 
       // Medication recommendation
-      if (answers['medications'] == true) {
+      if (answers['medication_hypertension'] == 'Yes, but not regularly') {
         recommendations.add({
           'title': 'Medication Adherence',
           'description':
@@ -217,42 +251,24 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       final conditions = answers['conditions'];
       if (conditions is List &&
           conditions.isNotEmpty &&
-          !conditions.contains('None')) {
+          !conditions.contains('None of the above')) {
         recommendations.add({
           'title': 'Comprehensive Health Management',
           'description':
-              'Managing co-existing conditions like diabetes or heart disease is important for overall cardiovascular health. Work with your healthcare team to coordinate care for all your conditions. Proper management can reduce the risk of complications.',
+              'Managing co-existing conditions like diabetes or high cholesterol is important for overall cardiovascular health. Work with your healthcare team to coordinate care for all your conditions. Proper management can reduce the risk of complications.',
           'priority': 'high',
         });
       }
 
-      // Additional hypertension recommendations
-      recommendations.addAll([
-        {
-          'title': 'Reduce Sodium Intake',
-          'description':
-              'Limit sodium to less than 1,500mg per day. Avoid processed foods and use herbs and spices for flavoring instead of salt. Reducing sodium intake can significantly lower your blood pressure and reduce strain on your heart.',
-          'priority': 'high',
-        },
-        {
-          'title': 'Increase Potassium-Rich Foods',
-          'description':
-              'Include foods like bananas, oranges, spinach, and sweet potatoes which can help counteract sodium\'s effects on blood pressure. Potassium helps your body eliminate excess sodium and ease tension in blood vessel walls.',
-          'priority': 'medium',
-        },
-        {
-          'title': 'Limit Caffeine',
-          'description':
-              'Caffeine can temporarily raise blood pressure. Monitor your intake and consider reducing consumption if sensitive. Try switching to decaffeinated beverages or herbal teas to reduce your overall caffeine consumption.',
-          'priority': 'medium',
-        },
-        {
-          'title': 'Mindful Eating',
-          'description':
-              'Practice portion control and eat slowly. Overeating can temporarily raise blood pressure. Pay attention to hunger and fullness cues to maintain a healthy weight and support cardiovascular health.',
-          'priority': 'medium',
-        },
-      ]);
+      // Age-specific recommendations for hypertension
+      final age = answers['age'];
+      if (age != null) {
+        final ageGroup = _getAgeGroupFromAnswer(age);
+        recommendations
+            .addAll(_getAgeSpecificRecommendations(ageGroup, riskScore >= 13));
+      }
+
+      // Note: Removed additional generic hypertension recommendations as they are now covered in age-specific recommendations
     } else if (latestResponse.surveyId == 'diabetes') {
       // High blood pressure recommendation for diabetes patients
       if (answers['diabetes_high_bp'] == true) {
@@ -393,58 +409,477 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       ]);
     }
 
-    // Add general recommendations
-    recommendations.addAll([
-      {
-        'title': 'Dietary Changes',
+    // Note: Removed general recommendations as they are now covered in age-specific recommendations for hypertension surveys
+    // Only add general recommendations for non-hypertension surveys
+    if (latestResponse.surveyId != 'hypertension') {
+      recommendations.addAll([
+        {
+          'title': 'Dietary Changes',
+          'description':
+              'Reduce sodium intake to less than 2,300mg per day. Focus on fresh fruits, vegetables, whole grains, and lean proteins. A heart-healthy diet can help manage weight, blood pressure, and cholesterol levels.',
+          'priority': 'high',
+        },
+        {
+          'title': 'Regular Exercise',
+          'description':
+              'Engage in 30 minutes of moderate exercise 5 days a week. Activities like brisk walking, swimming, or cycling can strengthen your heart and improve circulation. Start slowly and gradually increase intensity as your fitness improves.',
+          'priority': 'high',
+        },
+        {
+          'title': 'Stress Management',
+          'description':
+              'Practice relaxation techniques like meditation or deep breathing. Chronic stress can contribute to high blood pressure and other heart problems. Find healthy ways to manage stress such as hobbies, socializing, or relaxation exercises.',
+          'priority': 'medium',
+        },
+        {
+          'title': 'Regular Monitoring',
+          'description':
+              'Check your blood pressure at least once a week. Regular monitoring helps track progress and identify any concerning changes early. Keep a log of your readings to share with your healthcare provider.',
+          'priority': 'high',
+        },
+        {
+          'title': 'Adequate Sleep',
+          'description':
+              'Aim for 7-9 hours of quality sleep each night. Sleep is essential for heart health and overall well-being. Poor sleep can negatively affect blood pressure, weight, and stress hormone levels.',
+          'priority': 'medium',
+        },
+        // Additional general recommendations
+        {
+          'title': 'Limit Alcohol Consumption',
+          'description':
+              'Excessive alcohol can raise blood pressure. Limit to moderate amounts (up to one drink per day for women, two for men). If you choose to drink, do so in moderation and be aware of how alcohol affects your health.',
+          'priority': 'medium',
+        },
+        {
+          'title': 'Maintain a Healthy Weight',
+          'description':
+              'Achieving and maintaining a healthy weight can significantly reduce hypertension risk. Even a small weight loss can have positive effects on blood pressure and overall health. Focus on gradual, sustainable changes to your diet and activity level.',
+          'priority': 'high',
+        },
+        {
+          'title': 'Stay Hydrated',
+          'description':
+              'Drink plenty of water throughout the day to support cardiovascular health. Proper hydration helps maintain blood volume and supports heart function. Limit sugary drinks and excessive caffeine which can negatively impact heart health.',
+          'priority': 'low',
+        },
+      ]);
+    }
+
+    return recommendations;
+  }
+
+  // Helper method to determine age group from answer
+  String _getAgeGroupFromAnswer(dynamic age) {
+    int ageValue;
+
+    if (age is String) {
+      if (age == 'Under 40') {
+        return '20-29';
+      } else if (age == '40–49') {
+        return '40-49';
+      } else if (age == '50 and above') {
+        // For simplicity, we'll use 50-59 for this group
+        return '50-59';
+      }
+      ageValue = int.tryParse(age) ?? 0;
+    } else if (age is int) {
+      ageValue = age;
+    } else if (age is double) {
+      ageValue = age.toInt();
+    } else {
+      ageValue = 0;
+    }
+
+    if (ageValue >= 20 && ageValue <= 29) {
+      return '20-29';
+    } else if (ageValue >= 30 && ageValue <= 39) {
+      return '30-39';
+    } else if (ageValue >= 40 && ageValue <= 49) {
+      return '40-49';
+    } else if (ageValue >= 50 && ageValue <= 59) {
+      return '50-59';
+    } else if (ageValue >= 60 && ageValue <= 69) {
+      return '60-69';
+    } else if (ageValue >= 70 && ageValue <= 79) {
+      return '70-79';
+    } else {
+      // Default to a safe age group
+      return '30-39';
+    }
+  }
+
+  // Helper method to get age-specific recommendations
+  List<Map<String, dynamic>> _getAgeSpecificRecommendations(
+      String ageGroup, bool hasHypertension) {
+    List<Map<String, dynamic>> recommendations = [];
+
+    if (hasHypertension) {
+      // Recommendations for those diagnosed with hypertension
+      switch (ageGroup) {
+        case '20-29':
+          recommendations.addAll([
+            {
+              'title': 'Dietary Guidelines for Young Adults',
+              'description':
+                  'Eat fish, chicken, lean meat, beans, nuts, and seeds to lower BP and bad cholesterol. Limit sodium to 1,300 mg daily. Avoid sugary drinks and desserts; drink 6–8 glasses of water daily.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Routine for Young Adults',
+              'description':
+                  'Brisk walk or jog 30 minutes, 5 days a week. Warm up and cool down for 5–10 minutes. Monitor BP before and after exercise.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Lifestyle Changes for Young Adults',
+              'description':
+                  'Sleep 7–9 hours nightly with a regular schedule. Maintain healthy weight (BMI <25). Avoid smoking and limit alcohol intake.',
+              'priority': 'medium',
+            },
+            {
+              'title': 'Medication Adherence for Young Adults',
+              'description':
+                  'Take medicines at the same time daily. Use pillbox/phone reminders. Don\'t stop/skip meds without doctor\'s advice.',
+              'priority': 'high',
+            },
+          ]);
+          break;
+        case '30-39':
+          recommendations.addAll([
+            {
+              'title': 'Dietary Guidelines for Adults',
+              'description':
+                  'Eat more gulay (kangkong, malunggay, ampalaya) and fruits (banana, papaya, oranges, mangga). Limit sodium to 1,300 mg/day. Reduce sugary drinks/desserts; drink 6–8 glasses water daily.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Routine for Adults',
+              'description':
+                  'Brisk walking/jog 30 minutes/day, 5 days/week. Warm-up 5-10 mins before exercise and a cool-down after. Monitor BP before and after exercise.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Lifestyle Changes for Adults',
+              'description':
+                  'Manage stress with short breaks and meditation. Sleep 7–9 hours nightly with a regular schedule. Avoid smoking and limit alcohol intake.',
+              'priority': 'medium',
+            },
+            {
+              'title': 'Medication Adherence for Adults',
+              'description':
+                  'Take medicines at the same time daily. Use pillbox/phone reminders. Track BP at home 2–3 times per week.',
+              'priority': 'high',
+            },
+          ]);
+          break;
+        case '40-49':
+          recommendations.addAll([
+            {
+              'title': 'Dietary Guidelines for Middle-aged Adults',
+              'description':
+                  'Follow DASH diet with Filipino meals (sinigang w/ gulay, grilled tilapia, brown rice). Limit processed foods (canned, instant noodles, chips). Drink 6–8 glasses water daily (unless restricted).',
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Routine for Middle-aged Adults',
+              'description':
+                  'Walk/cycle 150 mins/week (30 mins, 5 days). Strength training 2x/week, 1–3 sets of 10–15 reps. Always warm up/cool down.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Lifestyle Changes for Middle-aged Adults',
+              'description':
+                  'Practice relaxation exercises like yoga or stretching. Maintain a regular sleeping pattern & at least 7-9 hrs of sleep daily. Avoid smoking and limit alcohol intake.',
+              'priority': 'medium',
+            },
+            {
+              'title': 'Medication Adherence for Middle-aged Adults',
+              'description':
+                  'Take medicines consistently at same time. Use pillbox/phone reminders. Attend follow-up visits every 3–6 months.',
+              'priority': 'high',
+            },
+          ]);
+          break;
+        case '50-59':
+          recommendations.addAll([
+            {
+              'title': 'Dietary Guidelines for Pre-seniors',
+              'description':
+                  'Choose boiled or grilled fish/chicken instead of fried. Increase vegetable servings (upo, sitaw, pechay). Drink 6–8 glasses water daily (unless restricted).',
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Routine for Pre-seniors',
+              'description':
+                  'Walk/jog 30 mins daily, 5 days/week. Join Zumba/dance for fun. Stretch daily 5–10 mins.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Lifestyle Changes for Pre-seniors',
+              'description':
+                  'Avoid smoking/alcohol. Manage stress with hobbies, prayer, gardening. Maintain a healthy weight and monitor BMI.',
+              'priority': 'medium',
+            },
+            {
+              'title': 'Medication Adherence for Pre-seniors',
+              'description':
+                  'Take medicines consistently. Use phone reminders/pillbox. Attend follow-up visits every 3–6 months.',
+              'priority': 'high',
+            },
+          ]);
+          break;
+        case '60-69':
+          recommendations.addAll([
+            {
+              'title': 'Dietary Guidelines for Seniors',
+              'description':
+                  'Eat soft, nutritious foods (boiled saba, lugaw w/ malunggay, fish tinola). Maintain low-salt diet; avoid bagoong, instant, canned goods. Drink enough fluids unless restricted.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Routine for Seniors',
+              'description':
+                  'Brisk walk/slow jog 30 mins, 5 days/week. Avoid sitting for long periods; move every hour. Monitor BP before and after exercise.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Lifestyle Changes for Seniors',
+              'description':
+                  'Ensure a safe home environment (remove clutter, handrails if needed). Maintain a regular sleeping pattern. Join social/church activities.',
+              'priority': 'medium',
+            },
+            {
+              'title': 'Medication Adherence for Seniors',
+              'description':
+                  'Take prescribed medicines at the same time daily. Ask family members to assist in medication reminder. Check blood pressure at home 2x/week for monitoring.',
+              'priority': 'high',
+            },
+          ]);
+          break;
+        case '70-79':
+          recommendations.addAll([
+            {
+              'title': 'Dietary Guidelines for Elderly',
+              'description':
+                  'Eat soft, easy-to-chew foods (malunggay soup, mashed kalabasa). Drink enough water unless restricted. Eat small, frequent meals.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Routine for Elderly',
+              'description':
+                  'Light walking 20–30 mins daily. Balance training 3x/week (heel-to-toe, one-leg w/ support). Stretching 2x/week after activity.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Lifestyle Changes for Elderly',
+              'description':
+                  'Maintain regular sleep routine. Join group/family activities. Keep home safe (lighting, clutter-free).',
+              'priority': 'medium',
+            },
+            {
+              'title': 'Medication Adherence for Elderly',
+              'description':
+                  'Follow medication schedule regularly. Ask family members to assist in medication reminder. Check blood pressure at home 2x/week for monitoring.',
+              'priority': 'high',
+            },
+          ]);
+          break;
+        default:
+          recommendations.addAll([
+            {
+              'title': 'General Dietary Guidelines',
+              'description':
+                  'Follow a heart-healthy diet with plenty of fruits, vegetables, and whole grains. Limit sodium intake to less than 1,500mg per day. Stay hydrated by drinking 6-8 glasses of water daily.',
+              'priority': 'high',
+            },
+            {
+              'title': 'General Exercise Guidelines',
+              'description':
+                  'Engage in at least 30 minutes of moderate-intensity exercise most days of the week. Include both aerobic activities and strength training. Always warm up and cool down properly.',
+              'priority': 'high',
+            },
+            {
+              'title': 'General Lifestyle Recommendations',
+              'description':
+                  'Maintain a regular sleep schedule with 7-9 hours of quality sleep. Manage stress through relaxation techniques. Avoid smoking and limit alcohol consumption.',
+              'priority': 'medium',
+            },
+            {
+              'title': 'Medication Management',
+              'description':
+                  'Take all prescribed medications as directed. Use reminders to ensure consistent dosing. Never stop or change medications without consulting your healthcare provider.',
+              'priority': 'high',
+            },
+          ]);
+      }
+    } else {
+      // Recommendations for those not diagnosed with hypertension
+      switch (ageGroup) {
+        case '20-29':
+          recommendations.addAll([
+            {
+              'title': 'Preventive Diet for Young Adults',
+              'description':
+                  'Eat more gulay (kangkong, talbos ng kamote, malunggay, ampalaya) and fruits in daily. Maintain a balanced diet with lean proteins and whole grains.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Routine for Young Adults',
+              'description':
+                  'Jog, brisk walk, or cycle 30 mins, 5 days/week. Play sports (basketball, badminton, volleyball) for fun and activity. Stretch 5–10 mins daily.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Lifestyle Changes for Young Adults',
+              'description':
+                  'Sleep 7–9 hrs with consistent schedule. Avoid smoking, limit alcohol. Manage stress through breaks, hobbies, or relaxation.',
+              'priority': 'medium',
+            },
+          ]);
+          break;
+        case '30-39':
+          recommendations.addAll([
+            {
+              'title': 'Preventive Diet for Adults',
+              'description':
+                  'Cook with less oil/salt (grilled fish, pinakbet, boiled chicken). Limit salty condiments (patis, toyo, bagoong). Drink 6–8 glasses water daily (unless restricted).',
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Routine for Adults',
+              'description':
+                  'Exercise 150 mins/week (e.g., brisk walk/cycle). Add resistance training 2x/week (bodyweight, dumbbells). Stretch or yoga 5–10 mins/day.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Lifestyle Changes for Adults',
+              'description':
+                  'Avoid smoking, limit alcohol. Sleep 7–8 hrs with regular bedtime routine. Maintain healthy weight (BMI <25).',
+              'priority': 'medium',
+            },
+          ]);
+          break;
+        case '40-49':
+          recommendations.addAll([
+            {
+              'title': 'Preventive Diet for Middle-aged Adults',
+              'description':
+                  'Eat high-fiber meals (brown rice, mongo, vegetables). Add potassium-rich fruits (saba, melon, papaya). Drink 6–8 glasses water daily (unless restricted).',
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Routine for Middle-aged Adults',
+              'description':
+                  'Brisk walk/jog 30 mins daily. Join community Zumba/aerobics. Stretch daily 5–10 mins.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Lifestyle Changes for Middle-aged Adults',
+              'description':
+                  'Maintain healthy weight. Manage stress through hobbies, prayer, or relaxation exercises. Avoid smoking and limit alcohol intake.',
+              'priority': 'medium',
+            },
+          ]);
+          break;
+        case '50-59':
+          recommendations.addAll([
+            {
+              'title': 'Preventive Diet for Pre-seniors',
+              'description':
+                  'Eat high-fiber meals (brown rice, mongo, vegetables). Add potassium-rich fruits (saba, melon, papaya). Drink 6–8 glasses water daily (unless restricted).',
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Routine for Pre-seniors',
+              'description':
+                  'Do brisk walking, swimming, biking, or Zumba 150 mins/week. Add light resistance training 2x/week. Stretch daily 5–10 mins.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Lifestyle Changes for Pre-seniors',
+              'description':
+                  'Monitor weight/waist monthly. Avoid smoking, limit alcohol. Do hobbies or relaxation to lower stress.',
+              'priority': 'medium',
+            },
+          ]);
+          break;
+        case '60-69':
+          recommendations.addAll([
+            {
+              'title': 'Preventive Diet for Seniors',
+              'description':
+                  'Eat soft, low-salt meals (lugaw with gulay, tinola). Ensure protein from fish, eggs, or tofu. Drink enough fluids unless restricted.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Routine for Seniors',
+              'description':
+                  'Brisk walk or light jog 30 mins daily. Stretch or yoga 5–10 mins/day. Avoid long sitting; move often.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Lifestyle Changes for Seniors',
+              'description':
+                  'Maintain an active lifestyle with social activities. Ensure a safe home environment to prevent falls. Avoid smoking and limit alcohol intake.',
+              'priority': 'medium',
+            },
+          ]);
+          break;
+        case '70-79':
+          recommendations.addAll([
+            {
+              'title': 'Preventive Diet for Elderly',
+              'description':
+                  'Prepare easy-to-chew, low-salt meals (malunggay soup, mashed kalabasa). Drink enough water unless restricted. Eat small, frequent meals.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Routine for Elderly',
+              'description':
+                  'Light walk 20–30 mins daily. Do chair/seated exercises 5–10 mins, 3x/week. Move regularly to prevent stiffness.',
+              'priority': 'high',
+            },
+            {
+              'title': 'Lifestyle Changes for Elderly',
+              'description':
+                  'Keep home safe (lighting, clutter-free). Stay socially connected (family, friends, community). Avoid smoking, limit alcohol.',
+              'priority': 'medium',
+            },
+          ]);
+          break;
+        default:
+          recommendations.addAll([
+            {
+              'title': 'General Preventive Diet',
+              'description':
+                  'Maintain a balanced diet rich in fruits, vegetables, and whole grains. Limit sodium and added sugars. Stay hydrated with 6-8 glasses of water daily.',
+              'priority': 'high',
+            },
+            {
+              'title': 'General Exercise Guidelines',
+              'description':
+                  'Aim for at least 150 minutes of moderate-intensity aerobic activity per week. Include muscle-strengthening activities twice a week. Add flexibility exercises daily.',
+              'priority': 'high',
+            },
+            {
+              'title': 'General Lifestyle Recommendations',
+              'description':
+                  'Maintain a consistent sleep schedule. Manage stress through healthy coping mechanisms. Avoid smoking and limit alcohol consumption.',
+              'priority': 'medium',
+            },
+          ]);
+      }
+    }
+
+    // Add exercise reminder for all age groups with hypertension
+    if (hasHypertension) {
+      recommendations.add({
+        'title': 'Exercise Reminder',
         'description':
-            'Reduce sodium intake to less than 2,300mg per day. Focus on fresh fruits, vegetables, whole grains, and lean proteins. A heart-healthy diet can help manage weight, blood pressure, and cholesterol levels.',
+            'Consult your doctor before starting new exercises to ensure they\'re safe and appropriate. Avoid overexertion and listen to your body.',
         'priority': 'high',
-      },
-      {
-        'title': 'Regular Exercise',
-        'description':
-            'Engage in 30 minutes of moderate exercise 5 days a week. Activities like brisk walking, swimming, or cycling can strengthen your heart and improve circulation. Start slowly and gradually increase intensity as your fitness improves.',
-        'priority': 'high',
-      },
-      {
-        'title': 'Stress Management',
-        'description':
-            'Practice relaxation techniques like meditation or deep breathing. Chronic stress can contribute to high blood pressure and other heart problems. Find healthy ways to manage stress such as hobbies, socializing, or relaxation exercises.',
-        'priority': 'medium',
-      },
-      {
-        'title': 'Regular Monitoring',
-        'description':
-            'Check your blood pressure at least once a week. Regular monitoring helps track progress and identify any concerning changes early. Keep a log of your readings to share with your healthcare provider.',
-        'priority': 'high',
-      },
-      {
-        'title': 'Adequate Sleep',
-        'description':
-            'Aim for 7-9 hours of quality sleep each night. Sleep is essential for heart health and overall well-being. Poor sleep can negatively affect blood pressure, weight, and stress hormone levels.',
-        'priority': 'medium',
-      },
-      // Additional general recommendations
-      {
-        'title': 'Limit Alcohol Consumption',
-        'description':
-            'Excessive alcohol can raise blood pressure. Limit to moderate amounts (up to one drink per day for women, two for men). If you choose to drink, do so in moderation and be aware of how alcohol affects your health.',
-        'priority': 'medium',
-      },
-      {
-        'title': 'Maintain a Healthy Weight',
-        'description':
-            'Achieving and maintaining a healthy weight can significantly reduce hypertension risk. Even a small weight loss can have positive effects on blood pressure and overall health. Focus on gradual, sustainable changes to your diet and activity level.',
-        'priority': 'high',
-      },
-      {
-        'title': 'Stay Hydrated',
-        'description':
-            'Drink plenty of water throughout the day to support cardiovascular health. Proper hydration helps maintain blood volume and supports heart function. Limit sugary drinks and excessive caffeine which can negatively impact heart health.',
-        'priority': 'low',
-      },
-    ]);
+      });
+    }
 
     return recommendations;
   }
@@ -454,21 +889,40 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     return _surveyResponses.first.riskScore;
   }
 
+  // Updated risk level interpretation based on new scoring system
   String _getRiskLevel(double score) {
-    if (score >= 70) return 'High';
+    // For hypertension surveys, use the new scoring system
+    if (_surveyResponses.isNotEmpty &&
+        _surveyResponses.first.surveyId == 'hypertension') {
+      if (score >= 13) return 'High';
+      if (score >= 7) return 'Moderate';
+      return 'Low';
+    }
+
+    // For other surveys, use the existing scoring system
+    if (score >= 75) return 'High';
     if (score >= 50) return 'Moderate';
-    if (score >= 30) return 'Elevated';
     return 'Low';
   }
 
+  // Updated risk description based on new scoring system
   String _getRiskDescription(double score) {
-    if (score >= 70)
-      return 'Your hypertension risk is high. Immediate action is recommended.';
+    // For hypertension surveys, use the new scoring system
+    if (_surveyResponses.isNotEmpty &&
+        _surveyResponses.first.surveyId == 'hypertension') {
+      if (score >= 13)
+        return 'Your hypertension risk is high. Immediate action is recommended.';
+      if (score >= 7)
+        return 'Your hypertension risk is moderate. Medical consultation is advised.';
+      return 'Your hypertension risk is low. Continue maintaining healthy habits.';
+    }
+
+    // For other surveys, use the existing scoring system
+    if (score >= 75)
+      return 'Your risk is high. Immediate action is recommended.';
     if (score >= 50)
-      return 'Your hypertension risk is moderate. Medical consultation is advised.';
-    if (score >= 30)
-      return 'Your hypertension risk is elevated. Follow the recommendations to reduce your risk.';
-    return 'Your hypertension risk is low. Continue maintaining healthy habits.';
+      return 'Your risk is moderate. Medical consultation is advised.';
+    return 'Your risk is low. Continue maintaining healthy habits.';
   }
 
   // Show dialog for export options
@@ -951,14 +1405,25 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     // Determine age group
     final ageGroup = _getAgeGroup(age);
 
-    // Determine if user has hypertension based on risk score
+    // Determine if user has hypertension based on risk score and new thresholds
     final hasHypertension = _getLatestRiskScore() >=
-        30; // Using 30 as threshold for hypertension risk
+        13; // Using 13 as threshold for high risk in new system
 
-    // Construct image path
-    final imagePath = hasHypertension
-        ? 'assets/images/With Hypertension/$ageGroup with HPN.png'
-        : 'assets/images/Without Hypertension/$ageGroup without HPN.png';
+    // Construct image path based on actual filenames in the assets folders
+    String imagePath;
+    if (hasHypertension) {
+      // For "With Hypertension" folder, all files end with "with HPN.png"
+      imagePath = 'assets/images/With Hypertension/$ageGroup with HPN.png';
+    } else {
+      // For "Without Hypertension" folder, most files end with "without HPN.png"
+      // but 40-49 y.o. ends with "wo HPN.png"
+      if (ageGroup == '40-49 y.o.') {
+        imagePath = 'assets/images/Without Hypertension/40-49 wo HPN.png';
+      } else {
+        imagePath =
+            'assets/images/Without Hypertension/$ageGroup without HPN.png';
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

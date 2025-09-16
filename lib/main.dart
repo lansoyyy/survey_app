@@ -8,28 +8,28 @@ import 'package:survey_app/screens/user/user_signup_screen.dart';
 import 'package:survey_app/screens/admin/admin_home_screen.dart';
 import 'package:survey_app/screens/admin/admin_login_screen.dart';
 
-// void main() async {
-//   WidgetsFlutterBinding.ensureInitialized();
-//   await Firebase.initializeApp(
-//     name: 'bantaybp-bc1ae',
-//     options: DefaultFirebaseOptions.currentPlatform,
-//   );
-
-//   runApp(const MyApp());
-// }
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-      options: const FirebaseOptions(
-          apiKey: "AIzaSyBPIYY_xN5UXs8P5vbE9uouD3zpqrVZUWw",
-          authDomain: "bantaybp-bc1ae.firebaseapp.com",
-          projectId: "bantaybp-bc1ae",
-          storageBucket: "bantaybp-bc1ae.firebasestorage.app",
-          messagingSenderId: "524819277974",
-          appId: "1:524819277974:web:f9363079dce61ac104fab7"));
+    name: 'bantaybp-bc1ae',
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const MyApp());
 }
+
+// void main() async {
+//   WidgetsFlutterBinding.ensureInitialized();
+//   await Firebase.initializeApp(
+//       options: const FirebaseOptions(
+//           apiKey: "AIzaSyBPIYY_xN5UXs8P5vbE9uouD3zpqrVZUWw",
+//           authDomain: "bantaybp-bc1ae.firebaseapp.com",
+//           projectId: "bantaybp-bc1ae",
+//           storageBucket: "bantaybp-bc1ae.firebasestorage.app",
+//           messagingSenderId: "524819277974",
+//           appId: "1:524819277974:web:f9363079dce61ac104fab7"));
+//   runApp(const MyApp());
+// }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
