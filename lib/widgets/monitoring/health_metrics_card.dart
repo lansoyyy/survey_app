@@ -71,7 +71,6 @@ class HealthMetricsCard extends StatelessWidget {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 12),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [

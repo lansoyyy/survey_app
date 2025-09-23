@@ -25,7 +25,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
         BottomNavigationBarItem(
           icon: Icon(Icons.question_answer_outlined),
           activeIcon: Icon(Icons.question_answer),
-          label: 'Survey',
+          label: 'Assessment',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.monitor_heart_outlined),
@@ -35,7 +35,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
         BottomNavigationBarItem(
           icon: Icon(Icons.analytics_outlined),
           activeIcon: Icon(Icons.analytics),
-          label: 'Analysis',
+          label: 'Management',
         ),
       ],
     );

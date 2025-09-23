@@ -94,11 +94,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   String _getAppBarTitle() {
     switch (_currentIndex) {
       case 0:
-        return 'Hypertension Survey';
+        return 'Assessment';
       case 1:
-        return 'Health Monitoring';
+        return 'Monitoring';
       case 2:
-        return 'Risk Analysis';
+        return 'Management';
       default:
         return 'Hypertension App';
     }

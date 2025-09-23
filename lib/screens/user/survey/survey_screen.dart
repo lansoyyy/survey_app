@@ -9,6 +9,7 @@ import 'package:survey_app/widgets/text_widget.dart';
 import 'package:survey_app/widgets/survey/survey_progress_indicator.dart';
 import 'package:survey_app/widgets/survey/survey_question_card.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:survey_app/screens/user/analysis/analysis_screen.dart';
 
 class SurveyScreen extends StatefulWidget {
   const SurveyScreen({super.key});
@@ -23,21 +24,22 @@ class _SurveyScreenState extends State<SurveyScreen> {
   final AuthService _authService = AuthService();
   final UserService _userService = UserService();
   bool _isSubmitting = false;
-  String _selectedCategory = 'hypertension';
+  String _selectedCategory = 'biological_genetic';
   bool _hasSelectedCategory = false;
+  bool _showSummary = false;
   String? _clearTrigger; // Used to trigger text field clearing
 
   // Survey questions organized by category
   final Map<String, List<Map<String, dynamic>>> _questionsByCategory = {
-    'hypertension': [
-      // Biological & Genetic Factors
+    'biological_genetic': [
       {
         'id': 'age',
         'text': 'How old are you?',
         'type': 'single_choice',
         'options': ['Under 40', '40–49', '50 and above'],
         'required': true,
-        'category': 'Biological & Genetic',
+        'category': 'Biological and Genetic Factors',
+        'scores': {'Under 40': 0, '40–49': 1, '50 and above': 3},
       },
       {
         'id': 'sex',
@@ -45,7 +47,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['Male', 'Female'],
         'required': true,
-        'category': 'Biological & Genetic',
+        'category': 'Biological and Genetic Factors',
+        'scores': {'Male': 2, 'Female': 0},
       },
       {
         'id': 'family_history',
@@ -54,7 +57,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['Yes', 'No / Not sure'],
         'required': true,
-        'category': 'Biological & Genetic',
+        'category': 'Biological and Genetic Factors',
+        'scores': {'Yes': 2, 'No / Not sure': 0},
       },
       {
         'id': 'conditions',
@@ -67,7 +71,12 @@ class _SurveyScreenState extends State<SurveyScreen> {
           'None of the above'
         ],
         'required': true,
-        'category': 'Biological & Genetic',
+        'category': 'Biological and Genetic Factors',
+        'scores': {
+          'Diabetes': 2,
+          'High cholesterol or triglycerides': 1,
+          'None of the above': 0
+        },
       },
       {
         'id': 'genetic_test',
@@ -80,17 +89,27 @@ class _SurveyScreenState extends State<SurveyScreen> {
           'No / Not tested'
         ],
         'required': false,
-        'category': 'Biological & Genetic',
+        'category': 'Biological and Genetic Factors',
+        'scores': {
+          'Yes, and results show increased risk': 3,
+          'Yes, no risk found': 0,
+          'No / Not tested': 0
+        },
       },
-
-      // Socioeconomic & Demographic Factors
+    ],
+    'socioeconomic_demographic': [
       {
         'id': 'education',
         'text': 'What is your highest level of education completed?',
         'type': 'single_choice',
         'options': ['Elementary or below', 'High school', 'College or higher'],
         'required': true,
-        'category': 'Socioeconomic & Demographic',
+        'category': 'Socioeconomic & Demographic Factors',
+        'scores': {
+          'Elementary or below': 2,
+          'High school': 1,
+          'College or higher': 0
+        },
       },
       {
         'id': 'financial_situation',
@@ -102,7 +121,12 @@ class _SurveyScreenState extends State<SurveyScreen> {
           'Well-off / high-income'
         ],
         'required': true,
-        'category': 'Socioeconomic & Demographic',
+        'category': 'Socioeconomic & Demographic Factors',
+        'scores': {
+          'Struggling or low-income': 2,
+          'Comfortable / middle-income': 1,
+          'Well-off / high-income': 2
+        },
       },
       {
         'id': 'residence',
@@ -110,7 +134,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['Urban area', 'Rural or provincial area'],
         'required': true,
-        'category': 'Socioeconomic & Demographic',
+        'category': 'Socioeconomic & Demographic Factors',
+        'scores': {'Urban area': 1, 'Rural or provincial area': 0},
       },
       {
         'id': 'living_arrangement',
@@ -122,7 +147,12 @@ class _SurveyScreenState extends State<SurveyScreen> {
           'I live with 1–4 people'
         ],
         'required': true,
-        'category': 'Socioeconomic & Demographic',
+        'category': 'Socioeconomic & Demographic Factors',
+        'scores': {
+          'I live alone': 1,
+          'I live with a large household (5 or more)': 1,
+          'I live with 1–4 people': 0
+        },
       },
       {
         'id': 'marital_status',
@@ -130,17 +160,19 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['Widowed or Divorced', 'Single or Married'],
         'required': true,
-        'category': 'Socioeconomic & Demographic',
+        'category': 'Socioeconomic & Demographic Factors',
+        'scores': {'Widowed or Divorced': 1, 'Single or Married': 0},
       },
-
-      // Lifestyle & Behavioral Factors
+    ],
+    'lifestyle_behavioral': [
       {
         'id': 'smoking',
         'text': 'Do you currently smoke or have you smoked in the past year?',
         'type': 'single_choice',
         'options': ['Yes', 'No'],
         'required': true,
-        'category': 'Lifestyle & Behavioral',
+        'category': 'Lifestyle and Behavioral Factors',
+        'scores': {'Yes': 2, 'No': 0},
       },
       {
         'id': 'alcohol',
@@ -152,7 +184,12 @@ class _SurveyScreenState extends State<SurveyScreen> {
           'Rarely or never'
         ],
         'required': true,
-        'category': 'Lifestyle & Behavioral',
+        'category': 'Lifestyle and Behavioral Factors',
+        'scores': {
+          '3 or more times per week': 2,
+          '1–2 times per week': 1,
+          'Rarely or never': 0
+        },
       },
       {
         'id': 'physical_activity',
@@ -165,7 +202,12 @@ class _SurveyScreenState extends State<SurveyScreen> {
           '3 or more times per week'
         ],
         'required': true,
-        'category': 'Lifestyle & Behavioral',
+        'category': 'Lifestyle and Behavioral Factors',
+        'scores': {
+          'Rarely / Not at all': 2,
+          '1–2 times per week': 1,
+          '3 or more times per week': 0
+        },
       },
       {
         'id': 'sleep_pattern',
@@ -176,7 +218,11 @@ class _SurveyScreenState extends State<SurveyScreen> {
           'Mostly regular (6–8 hrs/night)'
         ],
         'required': true,
-        'category': 'Lifestyle & Behavioral',
+        'category': 'Lifestyle and Behavioral Factors',
+        'scores': {
+          'Irregular or insufficient (<6 hrs/night)': 1,
+          'Mostly regular (6–8 hrs/night)': 0
+        },
       },
       {
         'id': 'stress',
@@ -184,7 +230,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['Often or daily', 'Sometimes', 'Rarely'],
         'required': true,
-        'category': 'Lifestyle & Behavioral',
+        'category': 'Lifestyle and Behavioral Factors',
+        'scores': {'Often or daily': 1, 'Sometimes': 0.5, 'Rarely': 0},
       },
       {
         'id': 'meal_planning',
@@ -195,10 +242,14 @@ class _SurveyScreenState extends State<SurveyScreen> {
           'I try to eat balanced meals'
         ],
         'required': true,
-        'category': 'Lifestyle & Behavioral',
+        'category': 'Lifestyle and Behavioral Factors',
+        'scores': {
+          'I frequently eat out / don\'t plan meals': 1,
+          'I try to eat balanced meals': 0
+        },
       },
-
-      // Dietary & Nutritional Factors
+    ],
+    'dietary_nutritional': [
       {
         'id': 'unhealthy_foods',
         'text':
@@ -206,7 +257,13 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['Almost daily', '2–3 times a week', 'Rarely', 'Never'],
         'required': true,
-        'category': 'Dietary & Nutritional',
+        'category': 'Dietary and Nutritional Factors',
+        'scores': {
+          'Almost daily': 3,
+          '2–3 times a week': 2,
+          'Rarely': 1,
+          'Never': 0
+        },
       },
       {
         'id': 'fruits_vegetables',
@@ -214,21 +271,26 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['Rarely', '2–3 times per week', 'Daily'],
         'required': true,
-        'category': 'Dietary & Nutritional',
+        'category': 'Dietary and Nutritional Factors',
+        'scores': {'Rarely': 2, '2–3 times per week': 1, 'Daily': 0},
       },
       {
-        'id': 'height',
-        'text': 'What is your height? (cm)',
-        'type': 'number',
+        'id': 'bmi',
+        'text':
+            'What is your Body Mass Index (BMI)? (optional: auto-calculate based on height/weight input)',
+        'type': 'single_choice',
+        'options': [
+          '25–29.9 (Overweight)',
+          '30+ (Obese)',
+          '18.5–24.9 (Normal)'
+        ],
         'required': true,
-        'category': 'Dietary & Nutritional',
-      },
-      {
-        'id': 'weight',
-        'text': 'What is your weight? (kg)',
-        'type': 'number',
-        'required': true,
-        'category': 'Dietary & Nutritional',
+        'category': 'Dietary and Nutritional Factors',
+        'scores': {
+          '25–29.9 (Overweight)': 2,
+          '30+ (Obese)': 3,
+          '18.5–24.9 (Normal)': 0
+        },
       },
       {
         'id': 'waist_circumference',
@@ -239,7 +301,11 @@ class _SurveyScreenState extends State<SurveyScreen> {
           'No or within normal range'
         ],
         'required': true,
-        'category': 'Dietary & Nutritional',
+        'category': 'Dietary and Nutritional Factors',
+        'scores': {
+          'Yes, and it\'s high (male ≥90cm, female ≥80cm)': 2,
+          'No or within normal range': 0
+        },
       },
       {
         'id': 'high_protein_fat',
@@ -248,7 +314,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['Daily or often', 'Occasionally', 'Rarely'],
         'required': true,
-        'category': 'Dietary & Nutritional',
+        'category': 'Dietary and Nutritional Factors',
+        'scores': {'Daily or often': 2, 'Occasionally': 1, 'Rarely': 0},
       },
       {
         'id': 'potassium_calcium_fiber',
@@ -257,10 +324,11 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['Rarely', 'Occasionally', 'Daily'],
         'required': true,
-        'category': 'Dietary & Nutritional',
+        'category': 'Dietary and Nutritional Factors',
+        'scores': {'Rarely': 2, 'Occasionally': 1, 'Daily': 0},
       },
-
-      // Healthcare Access & Management Behaviors
+    ],
+    'healthcare_management': [
       {
         'id': 'medication_hypertension',
         'text': 'Do you take medication for hypertension?',
@@ -271,7 +339,12 @@ class _SurveyScreenState extends State<SurveyScreen> {
           'No (not needed or not diagnosed)'
         ],
         'required': true,
-        'category': 'Healthcare Access & Management',
+        'category': 'Healthcare Access and Management Behaviors',
+        'scores': {
+          'Yes, but not regularly': 3,
+          'Yes, regularly': 0,
+          'No (not needed or not diagnosed)': 0
+        },
       },
       {
         'id': 'access_medication',
@@ -279,7 +352,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['No or uncertain', 'Yes'],
         'required': true,
-        'category': 'Healthcare Access & Management',
+        'category': 'Healthcare Access and Management Behaviors',
+        'scores': {'No or uncertain': 2, 'Yes': 0},
       },
       {
         'id': 'bp_monitor',
@@ -287,7 +361,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['Rarely or never', 'Occasionally', 'Regularly'],
         'required': true,
-        'category': 'Healthcare Access & Management',
+        'category': 'Healthcare Access and Management Behaviors',
+        'scores': {'Rarely or never': 2, 'Occasionally': 1, 'Regularly': 0},
       },
       {
         'id': 'traditional_remedies',
@@ -295,7 +370,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['Yes', 'No'],
         'required': true,
-        'category': 'Healthcare Access & Management',
+        'category': 'Healthcare Access and Management Behaviors',
+        'scores': {'Yes': 1, 'No': 0},
       },
       {
         'id': 'medical_advice',
@@ -304,7 +380,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['No or not sure', 'Yes'],
         'required': true,
-        'category': 'Healthcare Access & Management',
+        'category': 'Healthcare Access and Management Behaviors',
+        'scores': {'No or not sure': 2, 'Yes': 0},
       },
       {
         'id': 'bp_awareness',
@@ -312,7 +389,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': ['No', 'Yes'],
         'required': true,
-        'category': 'Healthcare Access & Management',
+        'category': 'Healthcare Access and Management Behaviors',
+        'scores': {'No': 2, 'Yes': 0},
       },
     ],
     'diabetes': [
@@ -447,7 +525,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
   List<Map<String, dynamic>> get _currentQuestions =>
       _questionsByCategory[_selectedCategory] ??
-      _questionsByCategory['hypertension']!;
+      _questionsByCategory['biological_genetic']!;
 
   void _onAnswerChanged(String questionId, dynamic value) {
     setState(() {
@@ -468,6 +546,33 @@ class _SurveyScreenState extends State<SurveyScreen> {
         _clearTrigger = DateTime.now().toString(); // Trigger clearing
         _currentQuestionIndex++;
         debugPrint('Moved to next question: $_currentQuestionIndex');
+      });
+    } else if (_currentQuestionIndex == _currentQuestions.length - 1) {
+      // Show summary screen when reaching the end
+      setState(() {
+        _showSummary = true;
+      });
+    }
+  }
+
+  void _skipQuestion() {
+    debugPrint(
+        'Skip question requested: currentIndex=$_currentQuestionIndex, total=${_currentQuestions.length}');
+
+    // Remove any existing answer for the current question
+    final currentQuestion = _currentQuestions[_currentQuestionIndex];
+    _onAnswerChanged(currentQuestion['id'], null);
+
+    if (_currentQuestionIndex < _currentQuestions.length - 1) {
+      setState(() {
+        _clearTrigger = DateTime.now().toString(); // Trigger clearing
+        _currentQuestionIndex++;
+        debugPrint('Skipped to next question: $_currentQuestionIndex');
+      });
+    } else {
+      // If this is the last question, show the summary screen
+      setState(() {
+        _showSummary = true;
       });
     }
   }
@@ -494,201 +599,30 @@ class _SurveyScreenState extends State<SurveyScreen> {
     // New comprehensive hypertension risk scoring based on the provided matrix
     double score = 0;
 
-    if (_selectedCategory == 'hypertension') {
-      // Biological & Genetic Factors
-      // Age scoring
-      final age = _answers['age'];
-      if (age == '40–49') {
-        score += 1;
-      } else if (age == '50 and above') {
-        score += 3;
-      }
+    // Calculate score for each question based on the scores map for all categories
+    if (_selectedCategory == 'biological_genetic' ||
+        _selectedCategory == 'socioeconomic_demographic' ||
+        _selectedCategory == 'lifestyle_behavioral' ||
+        _selectedCategory == 'dietary_nutritional' ||
+        _selectedCategory == 'healthcare_management') {
+      // Calculate score for each question based on the scores map
+      for (final question in _currentQuestions) {
+        final questionId = question['id'];
+        final answer = _answers[questionId];
 
-      // Sex scoring
-      if (_answers['sex'] == 'Male') {
-        score += 2;
-      }
+        if (answer != null) {
+          final scores = question['scores'] as Map<String, dynamic>;
 
-      // Family history scoring
-      if (_answers['family_history'] == 'Yes') {
-        score += 2;
-      }
-
-      // Conditions scoring
-      final conditions = _answers['conditions'] is List
-          ? _answers['conditions'].cast<String>()
-          : null;
-      if (conditions != null) {
-        if (conditions.contains('Diabetes')) {
-          score += 2;
-        }
-        if (conditions.contains('High cholesterol or triglycerides')) {
-          score += 1;
-        }
-      }
-
-      // Genetic test scoring
-      if (_answers['genetic_test'] == 'Yes, and results show increased risk') {
-        score += 3;
-      }
-
-      // Socioeconomic & Demographic Factors
-      // Education scoring
-      if (_answers['education'] == 'Elementary or below') {
-        score += 2;
-      }
-
-      // Financial situation scoring
-      if (_answers['financial_situation'] == 'Struggling or low-income' ||
-          _answers['financial_situation'] == 'Well-off / high-income') {
-        score += 2;
-      } else if (_answers['financial_situation'] ==
-          'Comfortable / middle-income') {
-        score += 1;
-      }
-
-      // Residence scoring
-      if (_answers['residence'] == 'Urban area') {
-        score += 1;
-      }
-
-      // Living arrangement scoring
-      if (_answers['living_arrangement'] == 'I live alone' ||
-          _answers['living_arrangement'] ==
-              'I live with a large household (5 or more)') {
-        score += 1;
-      }
-
-      // Marital status scoring
-      if (_answers['marital_status'] == 'Widowed or Divorced') {
-        score += 1;
-      }
-
-      // Lifestyle & Behavioral Factors
-      // Smoking scoring
-      if (_answers['smoking'] == 'Yes') {
-        score += 2;
-      }
-
-      // Alcohol scoring
-      if (_answers['alcohol'] == '3 or more times per week') {
-        score += 2;
-      } else if (_answers['alcohol'] == '1–2 times per week') {
-        score += 1;
-      }
-
-      // Physical activity scoring
-      if (_answers['physical_activity'] == 'Rarely / Not at all') {
-        score += 2;
-      } else if (_answers['physical_activity'] == '1–2 times per week') {
-        score += 1;
-      }
-
-      // Sleep pattern scoring
-      if (_answers['sleep_pattern'] ==
-          'Irregular or insufficient (<6 hrs/night)') {
-        score += 1;
-      }
-
-      // Stress scoring
-      if (_answers['stress'] == 'Often or daily') {
-        score += 1;
-      } else if (_answers['stress'] == 'Sometimes') {
-        score += 0.5;
-      }
-
-      // Meal planning scoring
-      if (_answers['meal_planning'] ==
-          'I frequently eat out / don\'t plan meals') {
-        score += 1;
-      }
-
-      // Dietary & Nutritional Factors
-      // Unhealthy foods scoring
-      if (_answers['unhealthy_foods'] == 'Almost daily') {
-        score += 3;
-      } else if (_answers['unhealthy_foods'] == '2–3 times a week') {
-        score += 2;
-      } else if (_answers['unhealthy_foods'] == 'Rarely') {
-        score += 1;
-      }
-
-      // Fruits and vegetables scoring
-      if (_answers['fruits_vegetables'] == 'Rarely') {
-        score += 2;
-      } else if (_answers['fruits_vegetables'] == '2–3 times per week') {
-        score += 1;
-      }
-
-      // BMI calculation and scoring
-      if (_answers['height'] != null && _answers['weight'] != null) {
-        try {
-          double height = (_answers['height'] as num).toDouble() /
-              100; // Convert cm to meters
-          double weight = (_answers['weight'] as num).toDouble();
-          double bmi = weight / (height * height);
-
-          if (bmi >= 30) {
-            score += 3; // Obese
-          } else if (bmi >= 25) {
-            score += 2; // Overweight
+          if (question['type'] == 'multiple_choice' && answer is List) {
+            // For multiple choice questions, add scores for each selected option
+            for (final selectedOption in answer) {
+              score += (scores[selectedOption] ?? 0).toDouble();
+            }
+          } else if (answer is String) {
+            // For single choice questions
+            score += (scores[answer] ?? 0).toDouble();
           }
-        } catch (e) {
-          debugPrint('Error calculating BMI: $e');
         }
-      }
-
-      // Waist circumference scoring
-      if (_answers['waist_circumference'] ==
-          'Yes, and it\'s high (male ≥90cm, female ≥80cm)') {
-        score += 2;
-      }
-
-      // High protein/fat scoring
-      if (_answers['high_protein_fat'] == 'Daily or often') {
-        score += 2;
-      } else if (_answers['high_protein_fat'] == 'Occasionally') {
-        score += 1;
-      }
-
-      // Potassium/calcium/fiber scoring
-      if (_answers['potassium_calcium_fiber'] == 'Rarely') {
-        score += 2;
-      } else if (_answers['potassium_calcium_fiber'] == 'Occasionally') {
-        score += 1;
-      }
-
-      // Healthcare Access & Management Behaviors
-      // Medication hypertension scoring
-      if (_answers['medication_hypertension'] == 'Yes, but not regularly') {
-        score += 3;
-      }
-
-      // Access to medication scoring
-      if (_answers['access_medication'] == 'No or uncertain') {
-        score += 2;
-      }
-
-      // BP monitor scoring
-      if (_answers['bp_monitor'] == 'Rarely or never') {
-        score += 2;
-      } else if (_answers['bp_monitor'] == 'Occasionally') {
-        score += 1;
-      }
-
-      // Traditional remedies scoring
-      if (_answers['traditional_remedies'] == 'Yes') {
-        score += 1;
-      }
-
-      // Medical advice scoring
-      if (_answers['medical_advice'] == 'No or not sure') {
-        score += 2;
-      }
-
-      // BP awareness scoring
-      if (_answers['bp_awareness'] == 'No') {
-        score += 2;
       }
     } else if (_selectedCategory == 'diabetes') {
       // Diabetes risk calculation (existing implementation)
@@ -807,6 +741,14 @@ class _SurveyScreenState extends State<SurveyScreen> {
           _hasSelectedCategory = false; // Reset the category selection flag
           _clearTrigger = DateTime.now().toString(); // Trigger clearing
         });
+
+        // Navigate to AnalysisScreen after successful submission
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) =>
+                AnalysisScreen(surveyResponse: surveyResponse),
+          ),
+        );
       }
     } catch (e) {
       // Use debugPrint instead of print for production code
@@ -860,6 +802,11 @@ class _SurveyScreenState extends State<SurveyScreen> {
       return _buildCategorySelection();
     }
 
+    if (_showSummary) {
+      debugPrint('Showing summary screen');
+      return _buildSummaryScreen();
+    }
+
     final currentQuestion = _currentQuestions[_currentQuestionIndex];
     final category = currentQuestion['category'] ?? '';
 
@@ -872,12 +819,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              TextWidget(
-                text: _selectedCategory.replaceAll('_', ' ').toUpperCase(),
-                fontSize: 14,
-                color: primary,
-                fontFamily: 'Bold',
-              ),
+              SizedBox(),
               TextButton(
                 onPressed: () {
                   debugPrint('Change Category button pressed');
@@ -914,6 +856,39 @@ class _SurveyScreenState extends State<SurveyScreen> {
           SurveyProgressIndicator(
             currentQuestion: _currentQuestionIndex + 1,
             totalQuestions: _currentQuestions.length,
+          ),
+          const SizedBox(height: 16),
+          // Show current risk score and level
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: primary.withOpacity(0.3)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextWidget(
+                      text: 'Current Risk Score:',
+                      fontSize: 14,
+                      color: textPrimary,
+                      fontFamily: 'Medium',
+                    ),
+                    TextWidget(
+                      text: _calculateRiskScore().toStringAsFixed(1),
+                      fontSize: 16,
+                      color: primary,
+                      fontFamily: 'Bold',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _buildRiskLevelIndicator(_calculateRiskScore()),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
           Expanded(
@@ -952,15 +927,10 @@ class _SurveyScreenState extends State<SurveyScreen> {
                     : ButtonWidget(
                         label: _currentQuestionIndex ==
                                 _currentQuestions.length - 1
-                            ? 'Submit'
+                            ? 'View Summary'
                             : 'Next',
                         onPressed: () {
-                          if (_currentQuestionIndex ==
-                              _currentQuestions.length - 1) {
-                            _submitSurvey();
-                          } else {
-                            _nextQuestion();
-                          }
+                          _nextQuestion();
                         },
                         color: _isCurrentQuestionAnswered() ||
                                 !_currentQuestions[_currentQuestionIndex]
@@ -971,14 +941,29 @@ class _SurveyScreenState extends State<SurveyScreen> {
               ),
             ],
           ),
+          // Skip Question button - only shown for non-required questions
+          if (!_currentQuestions[_currentQuestionIndex]['required'] &&
+              _currentQuestionIndex < _currentQuestions.length - 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 12.0),
+              child: Center(
+                child: TextButton(
+                  onPressed: _skipQuestion,
+                  child: TextWidget(
+                    text: 'Skip Question',
+                    fontSize: 14,
+                    color: textLight,
+                    fontFamily: 'Medium',
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
   Widget _buildCategorySelection() {
-    final categories = _questionsByCategory.keys.toList();
-
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -986,62 +971,331 @@ class _SurveyScreenState extends State<SurveyScreen> {
         children: [
           const SizedBox(height: 40),
           TextWidget(
-            text: 'Select Health Category',
+            text: 'Hypertension Risk Assessment',
             fontSize: 24,
             color: textPrimary,
             fontFamily: 'Bold',
           ),
           const SizedBox(height: 8),
           TextWidget(
-            text: 'Choose which health assessment you want to complete',
+            text:
+                'This assessment will evaluate your risk factors for hypertension across multiple categories',
             fontSize: 16,
             color: textLight,
           ),
           const SizedBox(height: 32),
           Expanded(
-            child: ListView.builder(
-              itemCount: categories.length,
-              itemBuilder: (context, index) {
-                final category = categories[index];
-                final displayName = category.replaceAll('_', ' ');
-                final capitalizedDisplayName = displayName
-                    .split(' ')
-                    .map((word) =>
-                        word.substring(0, 1).toUpperCase() + word.substring(1))
-                    .join(' ');
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListTile(
-                    title: TextWidget(
-                      text: capitalizedDisplayName,
-                      fontSize: 18,
-                      color: textPrimary,
-                      fontFamily: 'Bold',
-                    ),
-                    subtitle: TextWidget(
-                      text:
-                          'Complete a $capitalizedDisplayName risk assessment',
-                      fontSize: 14,
-                      color: textLight,
-                    ),
-                    trailing:
-                        const Icon(Icons.arrow_forward_ios, color: primary),
-                    onTap: () {
-                      debugPrint('Tapped on category: $category');
-                      _selectCategory(category);
-                    },
-                  ),
-                );
-              },
+            child: ListView(
+              children: [
+                _buildCategoryCard(
+                  'Biological and Genetic Factors',
+                  'Age, sex, family history, and genetic predisposition',
+                  'biological_genetic',
+                ),
+                _buildCategoryCard(
+                  'Socioeconomic & Demographic Factors',
+                  'Education, financial situation, and living arrangements',
+                  'socioeconomic_demographic',
+                ),
+                _buildCategoryCard(
+                  'Lifestyle and Behavioral Factors',
+                  'Smoking, alcohol, physical activity, and stress',
+                  'lifestyle_behavioral',
+                ),
+                _buildCategoryCard(
+                  'Dietary and Nutritional Factors',
+                  'Eating habits, BMI, and nutritional intake',
+                  'dietary_nutritional',
+                ),
+                _buildCategoryCard(
+                  'Healthcare Access and Management Behaviors',
+                  'Medication use, monitoring, and healthcare access',
+                  'healthcare_management',
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildCategoryCard(String title, String subtitle, String category) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        title: TextWidget(
+          text: title,
+          fontSize: 18,
+          color: textPrimary,
+          fontFamily: 'Bold',
+        ),
+        subtitle: TextWidget(
+          text: subtitle,
+          fontSize: 14,
+          color: textLight,
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios, color: primary),
+        onTap: () {
+          debugPrint('Tapped on category: $category');
+          _selectCategory(category);
+        },
+      ),
+    );
+  }
+
+  Widget _buildRiskLevelIndicator(double score) {
+    String riskLevel;
+    Color riskColor;
+    double progress;
+
+    if (score < 10) {
+      riskLevel = 'Low Risk';
+      riskColor = Colors.green;
+      progress = 0.25;
+    } else if (score < 20) {
+      riskLevel = 'Moderate Risk';
+      riskColor = Colors.yellow;
+      progress = 0.5;
+    } else if (score < 30) {
+      riskLevel = 'High Risk';
+      riskColor = Colors.orange;
+      progress = 0.75;
+    } else {
+      riskLevel = 'Very High Risk';
+      riskColor = Colors.red;
+      progress = 1.0;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            TextWidget(
+              text: 'Risk Level:',
+              fontSize: 12,
+              color: textLight,
+              fontFamily: 'Medium',
+            ),
+            TextWidget(
+              text: riskLevel,
+              fontSize: 12,
+              color: riskColor,
+              fontFamily: 'Bold',
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        LinearProgressIndicator(
+          value: progress,
+          backgroundColor: Colors.grey.shade200,
+          valueColor: AlwaysStoppedAnimation<Color>(riskColor),
+          minHeight: 6,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryScreen() {
+    final riskScore = _calculateRiskScore();
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextWidget(
+                text: 'SURVEY SUMMARY',
+                fontSize: 14,
+                color: primary,
+                fontFamily: 'Bold',
+              ),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _showSummary = false;
+                    _currentQuestionIndex = _currentQuestions.length - 1;
+                  });
+                },
+                child: TextWidget(
+                  text: 'Edit Answers',
+                  fontSize: 14,
+                  color: primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Risk score summary
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: primary.withOpacity(0.3)),
+            ),
+            child: Column(
+              children: [
+                TextWidget(
+                  text: 'Your Hypertension Risk Score',
+                  fontSize: 18,
+                  color: textPrimary,
+                  fontFamily: 'Bold',
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    TextWidget(
+                      text: riskScore.toStringAsFixed(1),
+                      fontSize: 36,
+                      color: primary,
+                      fontFamily: 'Bold',
+                    ),
+                    const SizedBox(width: 8),
+                    TextWidget(
+                      text: 'out of 100',
+                      fontSize: 16,
+                      color: textLight,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildRiskLevelIndicator(riskScore),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  child: TextWidget(
+                    text: _getRiskLevelDescription(riskScore),
+                    fontSize: 14,
+                    color: textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          TextWidget(
+            text: 'Your Answers',
+            fontSize: 18,
+            color: textPrimary,
+            fontFamily: 'Bold',
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _currentQuestions.length,
+              itemBuilder: (context, index) {
+                final question = _currentQuestions[index];
+                final answer = _answers[question['id']];
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  elevation: 1,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextWidget(
+                          text: question['text'],
+                          fontSize: 14,
+                          color: textPrimary,
+                          fontFamily: 'Medium',
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: TextWidget(
+                            text: _formatAnswer(answer, question),
+                            fontSize: 14,
+                            color: primary,
+                            fontFamily: 'Medium',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ButtonWidget(
+                  label: 'Previous',
+                  onPressed: () {
+                    setState(() {
+                      _showSummary = false;
+                      _currentQuestionIndex = _currentQuestions.length - 1;
+                    });
+                  },
+                  color: Colors.grey,
+                  textColor: primary,
+                  isOutlined: true,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _isSubmitting
+                    ? const Center(
+                        child: CircularProgressIndicator(color: primary))
+                    : ButtonWidget(
+                        label: 'Submit Survey',
+                        onPressed: _submitSurvey,
+                        color: primary,
+                      ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getRiskLevelDescription(double score) {
+    if (score < 10) {
+      return 'You have a low risk of developing hypertension. Continue maintaining a healthy lifestyle.';
+    } else if (score < 20) {
+      return 'You have a moderate risk of developing hypertension. Consider making some lifestyle changes to reduce your risk.';
+    } else if (score < 30) {
+      return 'You have a high risk of developing hypertension. It is recommended to consult with a healthcare provider and make significant lifestyle changes.';
+    } else {
+      return 'You have a very high risk of developing hypertension. Please consult with a healthcare provider as soon as possible for proper evaluation and management.';
+    }
+  }
+
+  String _formatAnswer(dynamic answer, Map<String, dynamic> question) {
+    if (answer == null) {
+      return 'Not answered';
+    }
+
+    if (answer is List) {
+      return answer.join(', ');
+    }
+
+    if (question['type'] == 'boolean') {
+      return answer == true ? 'Yes' : 'No';
+    }
+
+    return answer.toString();
   }
 }

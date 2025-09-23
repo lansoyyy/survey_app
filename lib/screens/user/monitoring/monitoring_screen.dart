@@ -75,13 +75,18 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
 
     for (int i = 0; i < recentMetrics.length; i++) {
       final metric = recentMetrics[i];
-      final date =
-          metric.recordedAt.day.toString(); // Simplified date representation
+      final DateTime recordDate = metric.recordedAt;
+
+      // Format date as MM/DD for better display
+      final String formattedDate =
+          '${recordDate.month.toString().padLeft(2, '0')}/${recordDate.day.toString().padLeft(2, '0')}';
 
       chartData.add({
-        'date': date,
+        'date': formattedDate,
         'systolic': metric.systolicBP,
         'diastolic': metric.diastolicBP,
+        'combined': '${metric.systolicBP}/${metric.diastolicBP}',
+        'fullDate': metric.recordedAt.toString().split(' ')[0],
       });
     }
 
@@ -154,17 +159,38 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   }
 
   String _getBpStatus(int systolic, int diastolic) {
-    if (systolic < 120 && diastolic < 80) return 'Normal';
-    if (systolic < 130 && diastolic < 80) return 'Elevated';
-    if (systolic < 140 || diastolic < 90) return 'High Stage 1';
-    return 'High Stage 2';
+    if (systolic < 120 && diastolic < 80) return 'Normal Blood Pressure';
+    if (systolic >= 120 && systolic <= 129 && diastolic < 80) return 'Elevated';
+    if ((systolic >= 130 && systolic <= 139) ||
+        (diastolic >= 80 && diastolic <= 89))
+      return 'HBP: Stage 1 Hypertension';
+    if (systolic >= 140 || diastolic >= 90) return 'HBP: Stage 2 Hypertension';
+    if (systolic >= 180 || diastolic >= 120) return 'Hypertensive Crisis';
+    return 'Normal';
   }
 
   Color _getBpColor(int systolic, int diastolic) {
     if (systolic < 120 && diastolic < 80) return healthGreen;
-    if (systolic < 130 && diastolic < 80) return Colors.orange;
-    if (systolic < 140 || diastolic < 90) return Colors.orangeAccent;
-    return healthRed;
+    if (systolic >= 120 && systolic <= 129 && diastolic < 80)
+      return Colors.yellow;
+    if ((systolic >= 130 && systolic <= 139) ||
+        (diastolic >= 80 && diastolic <= 89)) return Colors.orange;
+    if (systolic >= 140 || diastolic >= 90) return Colors.red;
+    if (systolic >= 180 || diastolic >= 120) return Colors.red.shade900;
+    return healthGreen;
+  }
+
+  bool _isBpElevatedOrHigher(int systolic, int diastolic) {
+    // Check if BP is elevated, high, or very high
+    if (systolic >= 120 && systolic <= 129 && diastolic < 80)
+      return true; // Elevated Blood Pressure
+    if ((systolic >= 130 && systolic <= 139) ||
+        (diastolic >= 80 && diastolic <= 89))
+      return true; // High Blood Pressure: Stage 1 Hypertension
+    if (systolic >= 140 || diastolic >= 90)
+      return true; // High Blood Pressure: Stage 2 Hypertension
+    if (systolic >= 180 || diastolic >= 120) return true; // Hypertensive Crisis
+    return false;
   }
 
   String _getHeartRateStatus(int heartRate) {
@@ -219,11 +245,11 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildTextField(_systolicController, 'Systolic (mmHg)',
-                    Icons.monitor_heart),
+                _buildTextField(
+                    _systolicController, 'Blood Pressure', Icons.monitor_heart),
                 const SizedBox(height: 16),
-                _buildTextField(_diastolicController, 'Diastolic (mmHg)',
-                    Icons.monitor_heart_outlined),
+                _buildTextField(_diastolicController,
+                    'Systolic/Diastolic (mmHg)', Icons.monitor_heart_outlined),
                 const SizedBox(height: 16),
                 _buildTextField(
                     _heartRateController, 'Heart Rate (bpm)', Icons.favorite),
@@ -411,23 +437,37 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                               color: textPrimary,
                               fontFamily: 'Bold',
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: _getBpColor(
+                            Row(
+                              children: [
+                                // Show alarm icon if BP is elevated or higher
+                                if (_isBpElevatedOrHigher(
                                     _getLatestMetrics()['systolic'],
-                                    _getLatestMetrics()['diastolic']),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: TextWidget(
-                                text: _getBpStatus(
-                                    _getLatestMetrics()['systolic'],
-                                    _getLatestMetrics()['diastolic']),
-                                fontSize: 12,
-                                color: Colors.white,
-                                fontFamily: 'Bold',
-                              ),
+                                    _getLatestMetrics()['diastolic']))
+                                  Icon(
+                                    Icons.notifications_active,
+                                    color: healthRed,
+                                    size: 20,
+                                  ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: _getBpColor(
+                                        _getLatestMetrics()['systolic'],
+                                        _getLatestMetrics()['diastolic']),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: TextWidget(
+                                    text: _getBpStatus(
+                                        _getLatestMetrics()['systolic'],
+                                        _getLatestMetrics()['diastolic']),
+                                    fontSize: 12,
+                                    color: Colors.white,
+                                    fontFamily: 'Bold',
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -473,8 +513,16 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
+                Center(
+                  child: ButtonWidget(
+                    label: 'Add New Reading',
+                    onPressed: _showAddReadingDialog,
+                    icon: const Icon(Icons.add, color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 24),
                 TextWidget(
-                  text: 'Health Metrics',
+                  text: 'Health Parameters',
                   fontSize: 20,
                   color: textPrimary,
                   fontFamily: 'Bold',
@@ -487,7 +535,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                     crossAxisCount: 2,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
-                    childAspectRatio: 1.2,
+                    childAspectRatio: 1.1,
                   ),
                   itemCount: healthMetricsCards.length,
                   itemBuilder: (context, index) {
@@ -511,25 +559,52 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                 ),
                 const SizedBox(height: 16),
                 Container(
-                  height: 200,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: grey),
                   ),
-                  child: _bpReadings.isEmpty
-                      ? Center(
-                          child: TextWidget(
-                            text: 'No data available',
-                            fontSize: 16,
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          TextWidget(
+                            text: 'Last Tracked',
+                            fontSize: 14,
                             color: textLight,
                           ),
-                        )
-                      : CustomPaint(
-                          painter: BloodPressureChartPainter(_bpReadings),
-                          size: const Size(double.infinity, 200),
-                        ),
+                          TextWidget(
+                            text: _healthMetricsList.isNotEmpty
+                                ? _healthMetricsList.first.recordedAt
+                                    .toString()
+                                    .split(' ')[0]
+                                : 'N/A',
+                            fontSize: 14,
+                            color: textPrimary,
+                            fontFamily: 'Bold',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        height: 200,
+                        child: _bpReadings.isEmpty
+                            ? Center(
+                                child: TextWidget(
+                                  text: 'No data available',
+                                  fontSize: 16,
+                                  color: textLight,
+                                ),
+                              )
+                            : CustomPaint(
+                                painter: BloodPressureChartPainter(_bpReadings),
+                                size: const Size(double.infinity, 200),
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 24),
                 TextWidget(
@@ -548,44 +623,36 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                   child: Column(
                     children: [
                       _buildBpClassificationRow(
-                        'Normal',
-                        'Systolic: less than 120',
-                        'Diastolic: less than 80',
+                        'Normal Blood Pressure',
+                        'Systolic: < 120',
+                        'Diastolic: < 80',
                         healthGreen, // Green background
                       ),
                       _buildBpClassificationRow(
-                        'Prehypertension/Elevated',
-                        'Systolic: 120-129',
-                        'Diastolic: less than 80',
+                        'Elevated Blood Pressure',
+                        'Systolic: 120 – 129',
+                        'Diastolic: < 80',
                         Colors.yellow.shade100, // Yellow background
                       ),
                       _buildBpClassificationRow(
-                        'Stage 1 Hypertension',
-                        'Systolic: 130-139',
-                        'Diastolic: 80-89',
-                        Colors.orange.shade100, // Light red background
+                        'High Blood Pressure: Stage 1 Hypertension',
+                        'Systolic: 130 – 139',
+                        'Diastolic: 80 – 89',
+                        Colors.orange.shade100, // Orange background
                       ),
                       _buildBpClassificationRow(
-                        'Stage 2 Hypertension',
-                        'Systolic: 140 or higher',
-                        'Diastolic: 90 or higher',
-                        Colors.red.shade200, // Darker red background
+                        'High Blood Pressure: Stage 2 Hypertension',
+                        'Systolic: 140+',
+                        'Diastolic: 90+',
+                        Colors.red.shade200, // Red background
                       ),
                       _buildBpClassificationRow(
                         'Hypertensive Crisis',
-                        'Systolic: higher than 180',
-                        'Diastolic: higher than 120',
-                        healthRed, // Darkest red background
+                        'Systolic: 180+',
+                        'Diastolic: 120+',
+                        Colors.red.shade900, // Dark red background
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Center(
-                  child: ButtonWidget(
-                    label: 'Add New Reading',
-                    onPressed: _showAddReadingDialog,
-                    icon: const Icon(Icons.add, color: Colors.white),
                   ),
                 ),
               ],
@@ -657,8 +724,7 @@ class BloodPressureChartPainter extends CustomPainter {
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
-    final systolicPaint = paint..color = primary;
-    final diastolicPaint = paint..color = accent;
+    final bpPaint = paint..color = primary;
 
     final textPainter = TextPainter(
       textAlign: TextAlign.center,
@@ -694,52 +760,32 @@ class BloodPressureChartPainter extends CustomPainter {
       textPainter.paint(canvas, Offset(0, y - 6));
     }
 
-    // Draw data points and lines for systolic
+    // Draw data points and lines for blood pressure
     if (data.isNotEmpty) {
-      Path systolicPath = Path();
+      Path bpPath = Path();
       for (int i = 0; i < data.length; i++) {
         final double x = 20 + i * pointSpacing;
+        // Use systolic value for the line position
         final double y = 20 +
             chartHeight -
             ((data[i]['systolic'] - minVal) / (maxVal - minVal)) * chartHeight;
 
         if (i == 0) {
-          systolicPath.moveTo(x, y);
+          bpPath.moveTo(x, y);
         } else {
-          systolicPath.lineTo(x, y);
+          bpPath.lineTo(x, y);
         }
 
         // Draw point
-        canvas.drawCircle(
-            Offset(x, y), 4, systolicPaint..style = PaintingStyle.fill);
+        canvas.drawCircle(Offset(x, y), 4, bpPaint..style = PaintingStyle.fill);
       }
-      canvas.drawPath(
-          systolicPath, systolicPaint..style = PaintingStyle.stroke);
+      canvas.drawPath(bpPath, bpPaint..style = PaintingStyle.stroke);
 
-      // Draw data points and lines for diastolic
-      Path diastolicPath = Path();
+      // Draw labels for days and BP readings
       for (int i = 0; i < data.length; i++) {
         final double x = 20 + i * pointSpacing;
-        final double y = 20 +
-            chartHeight -
-            ((data[i]['diastolic'] - minVal) / (maxVal - minVal)) * chartHeight;
 
-        if (i == 0) {
-          diastolicPath.moveTo(x, y);
-        } else {
-          diastolicPath.lineTo(x, y);
-        }
-
-        // Draw point
-        canvas.drawCircle(
-            Offset(x, y), 4, diastolicPaint..style = PaintingStyle.fill);
-      }
-      canvas.drawPath(
-          diastolicPath, diastolicPaint..style = PaintingStyle.stroke);
-
-      // Draw labels for days
-      for (int i = 0; i < data.length; i++) {
-        final double x = 20 + i * pointSpacing;
+        // Draw date label
         textPainter.text = TextSpan(
           text: data[i]['date'],
           style: const TextStyle(color: Colors.grey, fontSize: 10),
@@ -747,28 +793,29 @@ class BloodPressureChartPainter extends CustomPainter {
         textPainter.layout();
         textPainter.paint(
             canvas, Offset(x - textPainter.width / 2, size.height - 20));
+
+        // Draw BP reading label
+        textPainter.text = TextSpan(
+          text: data[i]['combined'],
+          style: const TextStyle(
+              color: textPrimary, fontSize: 10, fontWeight: FontWeight.bold),
+        );
+        textPainter.layout();
+        textPainter.paint(
+            canvas, Offset(x - textPainter.width / 2, size.height - 35));
       }
 
       // Draw legend
       final legendPaint = Paint()..style = PaintingStyle.fill;
 
-      // Systolic legend
+      // BP legend
       canvas.drawCircle(Offset(30, 10), 4, legendPaint..color = primary);
       textPainter.text = const TextSpan(
-        text: 'Systolic',
+        text: 'Blood Pressure',
         style: TextStyle(color: Colors.grey, fontSize: 10),
       );
       textPainter.layout();
       textPainter.paint(canvas, const Offset(40, 5));
-
-      // Diastolic legend
-      canvas.drawCircle(Offset(100, 10), 4, legendPaint..color = accent);
-      textPainter.text = const TextSpan(
-        text: 'Diastolic',
-        style: TextStyle(color: Colors.grey, fontSize: 10),
-      );
-      textPainter.layout();
-      textPainter.paint(canvas, const Offset(110, 5));
     }
   }
 

@@ -5,6 +5,7 @@ import 'package:survey_app/utils/colors.dart';
 import 'package:survey_app/widgets/button_widget.dart';
 import 'package:survey_app/widgets/text_widget.dart';
 import 'package:survey_app/widgets/textfield_widget.dart';
+import 'package:survey_app/widgets/forgot_password_dialog.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
 class UserLoginScreen extends StatefulWidget {
@@ -94,6 +95,10 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
 
   void _navigateToSignup() {
     Navigator.pushNamed(context, '/user/signup');
+  }
+
+  void _showForgotPasswordDialog() {
+    showForgotPasswordDialog(context);
   }
 
   @override
@@ -202,6 +207,20 @@ class _UserLoginScreenState extends State<UserLoginScreen> {
                         onPressed: _login,
                         width: double.infinity,
                       ),
+                const SizedBox(height: 16),
+                // Forgot password button
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _showForgotPasswordDialog,
+                    child: TextWidget(
+                      text: 'Forgot Password?',
+                      fontSize: 14,
+                      color: primary,
+                      fontFamily: 'Medium',
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
                 // Signup link
                 Row(

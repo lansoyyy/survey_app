@@ -15,7 +15,9 @@ import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
 
 class AnalysisScreen extends StatefulWidget {
-  const AnalysisScreen({super.key});
+  final SurveyResponse? surveyResponse;
+
+  const AnalysisScreen({super.key, this.surveyResponse});
 
   @override
   State<AnalysisScreen> createState() => _AnalysisScreenState();
@@ -33,7 +35,18 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSurveyData();
+    if (widget.surveyResponse != null) {
+      // Use the provided survey response
+      setState(() {
+        _surveyResponses = [widget.surveyResponse!];
+        _trendData = _convertToTrendData(_surveyResponses);
+        _recommendations = _generateRecommendations(_surveyResponses);
+        _isLoading = false;
+      });
+    } else {
+      // Load data from Firebase
+      _loadSurveyData();
+    }
   }
 
   void _loadSurveyData() {
@@ -127,20 +140,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     // Updated risk level interpretation based on new scoring system
     if (latestResponse.surveyId == 'hypertension') {
       if (riskScore >= 13) {
-        recommendations.addAll([
-          {
-            'title': 'Immediate Medical Attention',
-            'description':
-                'Your risk score indicates a high risk for hypertension. Consult with a healthcare professional immediately. Early intervention can significantly improve your health outcomes and prevent complications. Do not delay in seeking professional medical advice.',
-            'priority': 'high',
-          },
-          {
-            'title': 'Medication Compliance',
-            'description':
-                'If prescribed medication, ensure you take it as directed. Do not stop or change your dosage without consulting your doctor. Consistent medication use is crucial for managing your condition effectively. Proper adherence can significantly improve your health outcomes.',
-            'priority': 'high',
-          },
-        ]);
+        recommendations.addAll([]);
       } else if (riskScore >= 7) {
         recommendations.addAll([
           {
@@ -198,24 +198,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     // Add personalized recommendations based on survey answers
     if (latestResponse.surveyId == 'hypertension') {
       // Smoking recommendation
-      if (answers['smoking'] == 'Yes') {
-        recommendations.add({
-          'title': 'Quit Smoking',
-          'description':
-              'Smoking significantly increases your hypertension risk. Consider smoking cessation programs or nicotine replacement therapy. Quitting smoking can improve your blood pressure and overall cardiovascular health within just a few weeks.',
-          'priority': 'high',
-        });
-      }
-
-      // Family history recommendation
-      if (answers['family_history'] == 'Yes') {
-        recommendations.add({
-          'title': 'Regular Health Screenings',
-          'description':
-              'With a family history of hypertension, regular monitoring is crucial. Schedule check-ups every 3-6 months. Early detection of changes in your blood pressure can help prevent serious complications.',
-          'priority': 'high',
-        });
-      }
 
       // Stress management recommendation
       if (answers['stress'] == 'Often or daily') {
@@ -224,39 +206,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           'description':
               'Your high stress level contributes to hypertension risk. Try mindfulness, yoga, or counseling. Managing stress through relaxation techniques can have a positive impact on your blood pressure and overall well-being.',
           'priority': 'medium',
-        });
-      }
-
-      // Exercise recommendation
-      if (answers['physical_activity'] == 'Rarely / Not at all') {
-        recommendations.add({
-          'title': 'Increase Physical Activity',
-          'description':
-              'Regular exercise helps lower blood pressure. Start with 10-15 minutes of walking daily. Gradually increase your activity level as your fitness improves to maximize cardiovascular benefits.',
-          'priority': 'high',
-        });
-      }
-
-      // Medication recommendation
-      if (answers['medication_hypertension'] == 'Yes, but not regularly') {
-        recommendations.add({
-          'title': 'Medication Adherence',
-          'description':
-              'Continue taking your blood pressure medications as prescribed. Never stop without consulting your doctor. Proper medication management is essential for controlling hypertension and preventing complications.',
-          'priority': 'high',
-        });
-      }
-
-      // Conditions recommendation
-      final conditions = answers['conditions'];
-      if (conditions is List &&
-          conditions.isNotEmpty &&
-          !conditions.contains('None of the above')) {
-        recommendations.add({
-          'title': 'Comprehensive Health Management',
-          'description':
-              'Managing co-existing conditions like diabetes or high cholesterol is important for overall cardiovascular health. Work with your healthcare team to coordinate care for all your conditions. Proper management can reduce the risk of complications.',
-          'priority': 'high',
         });
       }
 
@@ -519,27 +468,39 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         case '20-29':
           recommendations.addAll([
             {
-              'title': 'Dietary Guidelines for Young Adults',
-              'description':
-                  'Eat fish, chicken, lean meat, beans, nuts, and seeds to lower BP and bad cholesterol. Limit sodium to 1,300 mg daily. Avoid sugary drinks and desserts; drink 6–8 glasses of water daily.',
+              'title': 'Diet',
+              'bullets': [
+                'Eat more vegetables such as kangkong, malunggay, ampalaya and fruits such as banana, papaya, oranges, and mangga.',
+                'These food list helps lower BP and LDL "bad cholesterol": Fish, Chicken, Lean meat (meat with no fat), Beans (Baguio beans, monggo, peas), Nuts & Seeds',
+                'Limit sodium intake to 1,300 mg (¼ tablespoon) per day. Limit saturated and trans fat such as fatty meats, full-fat dairy and processed foods.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Exercise Routine for Young Adults',
-              'description':
-                  'Brisk walk or jog 30 minutes, 5 days a week. Warm up and cool down for 5–10 minutes. Monitor BP before and after exercise.',
+              'title': 'Exercise',
+              'bullets': [
+                'Do brisk walking or jogging at least 30 minutes, 5 days/week.',
+                'Do moderate-intensity sports like badminton, tennis, or basketball for at least 30 minutes, 3–5 days/week',
+                'Always include a 5-10 minute warm-up before exercise and a cool-down afterwards.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Lifestyle Changes for Young Adults',
-              'description':
-                  'Sleep 7–9 hours nightly with a regular schedule. Maintain healthy weight (BMI <25). Avoid smoking and limit alcohol intake.',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Sleep 7–9 hours nightly with a regular schedule.',
+                'Practice stress relief like deep breathing or listening to music.',
+                'Maintain healthy weight (BMI <25). Avoid smoking and minimize alcohol intake.'
+              ],
               'priority': 'medium',
             },
             {
-              'title': 'Medication Adherence for Young Adults',
-              'description':
-                  'Take medicines at the same time daily. Use pillbox/phone reminders. Don\'t stop/skip meds without doctor\'s advice.',
+              'title': 'Medication Adherence',
+              'bullets': [
+                'Take medicines at the same time daily as prescribed by your physician.',
+                'Use a pillbox or phone reminders such as alarms to help you in taking your medicine at the right time.',
+                'Never stop or skip medicines without doctor\'s advice.'
+              ],
               'priority': 'high',
             },
           ]);
@@ -547,27 +508,39 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         case '30-39':
           recommendations.addAll([
             {
-              'title': 'Dietary Guidelines for Adults',
-              'description':
-                  'Eat more gulay (kangkong, malunggay, ampalaya) and fruits (banana, papaya, oranges, mangga). Limit sodium to 1,300 mg/day. Reduce sugary drinks/desserts; drink 6–8 glasses water daily.',
+              'title': 'Diet',
+              'bullets': [
+                'Eat more vegetables such as kangkong, malunggay, ampalaya and fruits such as banana, papaya, oranges, and mangga.',
+                'These food list helps lower BP and LDL "bad cholesterol": Fish, Chicken, Lean meat (meat with no fat), Beans (Baguio beans, monggo, peas), Nuts & Seeds',
+                'Limit sodium intake to 1,300 mg (¼ tablespoon) per day. Limit saturated and trans fat such as fatty meats, full-fat dairy and processed foods.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Exercise Routine for Adults',
-              'description':
-                  'Brisk walking/jog 30 minutes/day, 5 days/week. Warm-up 5-10 mins before exercise and a cool-down after. Monitor BP before and after exercise.',
+              'title': 'Exercise',
+              'bullets': [
+                'Brisk walking or biking 30 minutes/day, 5 days/week.',
+                'Do home workouts like planking or resistance bands 2 days/week.',
+                'Always include a 5-10 minute warm-up before exercise and a cool-down afterwards.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Lifestyle Changes for Adults',
-              'description':
-                  'Manage stress with short breaks and meditation. Sleep 7–9 hours nightly with a regular schedule. Avoid smoking and limit alcohol intake.',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Manage work stress through short breaks and meditation.',
+                'Sleep 7–9 hours nightly with a regular schedule.',
+                'Maintain healthy weight (BMI <25). Avoid smoking and minimize alcohol intake.'
+              ],
               'priority': 'medium',
             },
             {
-              'title': 'Medication Adherence for Adults',
-              'description':
-                  'Take medicines at the same time daily. Use pillbox/phone reminders. Track BP at home 2–3 times per week.',
+              'title': 'Medication Adherence',
+              'bullets': [
+                'Take medicines at the same time daily as prescribed by your physician.',
+                'Use a pillbox or phone reminders such as alarms to help you in taking your medicine at the right time.',
+                'Never stop or skip medicines without doctor\'s advice. Track BP at home 2–3 times per week.'
+              ],
               'priority': 'high',
             },
           ]);
@@ -575,27 +548,39 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         case '40-49':
           recommendations.addAll([
             {
-              'title': 'Dietary Guidelines for Middle-aged Adults',
-              'description':
-                  'Follow DASH diet with Filipino meals (sinigang w/ gulay, grilled tilapia, brown rice). Limit processed foods (canned, instant noodles, chips). Drink 6–8 glasses water daily (unless restricted).',
+              'title': 'Diet',
+              'bullets': [
+                'Follow DASH with Filipino meals: sinigang with lots of gulay, grilled tilapia, brown rice if affordable.',
+                'Eat at least 1 serving of fruits (banana, papaya, mango) per day.',
+                'Limit intake of processed foods (canned goods, instant noodles, chips) to prevent excess sodium intake. Reduce use of patis, bagoong, and toyo.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Exercise Routine for Middle-aged Adults',
-              'description':
-                  'Walk/cycle 150 mins/week (30 mins, 5 days). Strength training 2x/week, 1–3 sets of 10–15 reps. Always warm up/cool down.',
+              'title': 'Exercise',
+              'bullets': [
+                'Do walking or cycling for at least 150 minutes per week (e.g., 30 minutes a day, 5 days a week).',
+                'Choose active options like climbing stairs instead of elevators.',
+                'Do strength training 2 days per week, with 1–3 sets of 10–15 reps for major muscle groups.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Lifestyle Changes for Middle-aged Adults',
-              'description':
-                  'Practice relaxation exercises like yoga or stretching. Maintain a regular sleeping pattern & at least 7-9 hrs of sleep daily. Avoid smoking and limit alcohol intake.',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Schedule annual check-up for cholesterol and blood sugar.',
+                'Practice relaxation exercises like yoga or stretching.',
+                'Maintain a regular sleeping pattern and have at least 7-9 hrs of sleep daily. Avoid smoking and minimize alcohol intake.'
+              ],
               'priority': 'medium',
             },
             {
-              'title': 'Medication Adherence for Middle-aged Adults',
-              'description':
-                  'Take medicines consistently at same time. Use pillbox/phone reminders. Attend follow-up visits every 3–6 months.',
+              'title': 'Medication Adherence',
+              'bullets': [
+                'Take prescribed medicines consistently at the same time each day, even if blood pressure feels normal.',
+                'Never stop or adjust medication without doctor\'s advice.',
+                'Use a pillbox or phone reminders to avoid missed doses. Attend follow-up visits every 3–6 months.'
+              ],
               'priority': 'high',
             },
           ]);
@@ -603,27 +588,39 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         case '50-59':
           recommendations.addAll([
             {
-              'title': 'Dietary Guidelines for Pre-seniors',
-              'description':
-                  'Choose boiled or grilled fish/chicken instead of fried. Increase vegetable servings (upo, sitaw, pechay). Drink 6–8 glasses water daily (unless restricted).',
+              'title': 'Diet',
+              'bullets': [
+                'Choose boiled or grilled fish/chicken instead of fried.',
+                'Increase vegetable servings (upo, sitaw, pechay).',
+                'Drink at least 6–8 glasses of water daily unless restricted by your doctor.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Exercise Routine for Pre-seniors',
-              'description':
-                  'Walk/jog 30 mins daily, 5 days/week. Join Zumba/dance for fun. Stretch daily 5–10 mins.',
+              'title': 'Exercise',
+              'bullets': [
+                'Walk at a moderate pace for 30 minutes daily, at least 5 days a week.',
+                'Join community Zumba or dance classes for motivation and fun.',
+                'Do light strength training (using water bottles or resistance bands) at least 2 times per week.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Lifestyle Changes for Pre-seniors',
-              'description':
-                  'Avoid smoking/alcohol. Manage stress with hobbies, prayer, gardening. Maintain a healthy weight and monitor BMI.',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Avoid smoking and alcohol consumption as these worsen blood pressure.',
+                'Manage stress through gardening, prayer, or enjoyable hobbies.',
+                'Maintain a healthy weight and monitor BMI. Check weight monthly and monitor waistline regularly.'
+              ],
               'priority': 'medium',
             },
             {
-              'title': 'Medication Adherence for Pre-seniors',
-              'description':
-                  'Take medicines consistently. Use phone reminders/pillbox. Attend follow-up visits every 3–6 months.',
+              'title': 'Medication Adherence',
+              'bullets': [
+                'Take medicines consistently even if blood pressure is controlled.',
+                'Use phone reminders, alarms, or pillboxes to avoid forgetting doses.',
+                'Always consult a doctor before using herbal remedies or supplements. Attend follow-up visits every 3–6 months.'
+              ],
               'priority': 'high',
             },
           ]);
@@ -631,27 +628,39 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         case '60-69':
           recommendations.addAll([
             {
-              'title': 'Dietary Guidelines for Seniors',
-              'description':
-                  'Eat soft, nutritious foods (boiled saba, lugaw w/ malunggay, fish tinola). Maintain low-salt diet; avoid bagoong, instant, canned goods. Drink enough fluids unless restricted.',
+              'title': 'Diet',
+              'bullets': [
+                'Eat soft but nutritious foods such as boiled saba, lugaw with malunggay, and fish tinola.',
+                'Maintain a low-salt diet by avoiding bagoong, instant soups, and processed canned goods.',
+                'Ensure daily protein intake (fish, eggs, tofu, or monggo) to prevent muscle loss. Include fruits such as papaya and melon.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Exercise Routine for Seniors',
-              'description':
-                  'Brisk walk/slow jog 30 mins, 5 days/week. Avoid sitting for long periods; move every hour. Monitor BP before and after exercise.',
+              'title': 'Exercise',
+              'bullets': [
+                'Do brisk walking or slow jogging for 30 minutes, 5 days a week.',
+                'Add balance exercises such as heel-to-toe walking or standing on one foot daily (5-10 mins/day).',
+                'Include stretching to improve flexibility and reduce muscle stiffness. (5-10 mins/day)'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Lifestyle Changes for Seniors',
-              'description':
-                  'Ensure a safe home environment (remove clutter, handrails if needed). Maintain a regular sleeping pattern. Join social/church activities.',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Maintain a regular sleeping pattern of 7–9 hours per night.',
+                'Avoid smoking and minimize alcohol intake.',
+                'Join community or church activities to prevent isolation and improve emotional well-being.'
+              ],
               'priority': 'medium',
             },
             {
-              'title': 'Medication Adherence for Seniors',
-              'description':
-                  'Take prescribed medicines at the same time daily. Ask family members to assist in medication reminder. Check blood pressure at home 2x/week for monitoring.',
+              'title': 'Medication Adherence',
+              'bullets': [
+                'Take prescribed medicines at the same time daily, even if blood pressure is normal.',
+                'Have family members or caregivers assist with reminders if forgetful.',
+                'Check blood pressure at home twice a week for monitoring. Attend follow-up visits every 3–6 months.'
+              ],
               'priority': 'high',
             },
           ]);
@@ -659,27 +668,39 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         case '70-79':
           recommendations.addAll([
             {
-              'title': 'Dietary Guidelines for Elderly',
-              'description':
-                  'Eat soft, easy-to-chew foods (malunggay soup, mashed kalabasa). Drink enough water unless restricted. Eat small, frequent meals.',
+              'title': 'Diet',
+              'bullets': [
+                'Eat easy-to-chew vegetables such as malunggay soup or mashed kalabasa.',
+                'Include soft fruits like banana, melon, or papaya daily.',
+                'Drink enough water throughout the day unless restricted by a doctor. Prepare low-salt meals, avoiding canned foods and dried fish.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Exercise Routine for Elderly',
-              'description':
-                  'Light walking 20–30 mins daily. Balance training 3x/week (heel-to-toe, one-leg w/ support). Stretching 2x/week after activity.',
+              'title': 'Exercise',
+              'bullets': [
+                'Do light walking at a comfortable pace for 20–30 minutes daily.',
+                'Add seated or chair exercises 2–3 times per week to maintain mobility and prevent stiffness.',
+                'Practice balance training (heel-to-toe walking, standing on one leg with support) 3 times per week.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Lifestyle Changes for Elderly',
-              'description':
-                  'Maintain regular sleep routine. Join group/family activities. Keep home safe (lighting, clutter-free).',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Prioritize sleep and daily routine to keep the body well-regulated.',
+                'Completely avoid smoking and limit alcohol.',
+                'Join light group activities (community exercises, church groups, family gatherings) to enhance mental wellness.'
+              ],
               'priority': 'medium',
             },
             {
-              'title': 'Medication Adherence for Elderly',
-              'description':
-                  'Follow medication schedule regularly. Ask family members to assist in medication reminder. Check blood pressure at home 2x/week for monitoring.',
+              'title': 'Medication Adherence',
+              'bullets': [
+                'Follow medication schedule and appropriate amount of dose.',
+                'Ask caregiver or family to help prepare and remind about medicines.',
+                'Check blood pressure at home twice a week for monitoring. Always consult a doctor before stopping or changing doses.'
+              ],
               'priority': 'high',
             },
           ]);
@@ -687,27 +708,39 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         default:
           recommendations.addAll([
             {
-              'title': 'General Dietary Guidelines',
-              'description':
-                  'Follow a heart-healthy diet with plenty of fruits, vegetables, and whole grains. Limit sodium intake to less than 1,500mg per day. Stay hydrated by drinking 6-8 glasses of water daily.',
+              'title': 'Diet',
+              'bullets': [
+                'Follow a heart-healthy diet with plenty of fruits, vegetables, and whole grains.',
+                'Limit sodium intake to less than 1,500mg per day.',
+                'Stay hydrated by drinking 6-8 glasses of water daily.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'General Exercise Guidelines',
-              'description':
-                  'Engage in at least 30 minutes of moderate-intensity exercise most days of the week. Include both aerobic activities and strength training. Always warm up and cool down properly.',
+              'title': 'Exercise',
+              'bullets': [
+                'Engage in at least 30 minutes of moderate-intensity exercise most days of the week.',
+                'Include both aerobic activities and strength training.',
+                'Always warm up and cool down properly.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'General Lifestyle Recommendations',
-              'description':
-                  'Maintain a regular sleep schedule with 7-9 hours of quality sleep. Manage stress through relaxation techniques. Avoid smoking and limit alcohol consumption.',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Maintain a regular sleep schedule with 7-9 hours of quality sleep.',
+                'Manage stress through relaxation techniques.',
+                'Avoid smoking and limit alcohol consumption.'
+              ],
               'priority': 'medium',
             },
             {
-              'title': 'Medication Management',
-              'description':
-                  'Take all prescribed medications as directed. Use reminders to ensure consistent dosing. Never stop or change medications without consulting your healthcare provider.',
+              'title': 'Medication Adherence',
+              'bullets': [
+                'Take all prescribed medications as directed.',
+                'Use reminders to ensure consistent dosing.',
+                'Never stop or change medications without consulting your healthcare provider.'
+              ],
               'priority': 'high',
             },
           ]);
@@ -718,21 +751,30 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         case '20-29':
           recommendations.addAll([
             {
-              'title': 'Preventive Diet for Young Adults',
-              'description':
-                  'Eat more gulay (kangkong, talbos ng kamote, malunggay, ampalaya) and fruits in daily. Maintain a balanced diet with lean proteins and whole grains.',
+              'title': 'Diet',
+              'bullets': [
+                'Eat more gulay (kangkong, talbos ng kamote, malunggay, ampalaya) in every meal.',
+                'Choose fruits as snacks such as banana, papaya, or guava instead of chips or processed junk food.',
+                'Avoid energy drinks, soft drinks, and fast food which can raise blood pressure over time.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Exercise Routine for Young Adults',
-              'description':
-                  'Jog, brisk walk, or cycle 30 mins, 5 days/week. Play sports (basketball, badminton, volleyball) for fun and activity. Stretch 5–10 mins daily.',
+              'title': 'Exercise',
+              'bullets': [
+                'Engage in aerobic activities such as jogging, brisk walking, or cycling for 30 minutes at least 5 days per week.',
+                'Add strengthening exercises (push-ups, squats, planking, or resistance bands) at least 2 times per week.',
+                'Play sports such as basketball, badminton, or volleyball for fun and physical activity.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Lifestyle Changes for Young Adults',
-              'description':
-                  'Sleep 7–9 hrs with consistent schedule. Avoid smoking, limit alcohol. Manage stress through breaks, hobbies, or relaxation.',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Sleep 7–9 hours daily and maintain a consistent schedule.',
+                'Avoid smoking and limit alcohol consumption to occasional, minimal intake.',
+                'Manage stress from school or work through breaks, hobbies, or relaxation activities.'
+              ],
               'priority': 'medium',
             },
           ]);
@@ -740,21 +782,30 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         case '30-39':
           recommendations.addAll([
             {
-              'title': 'Preventive Diet for Adults',
-              'description':
-                  'Cook with less oil/salt (grilled fish, pinakbet, boiled chicken). Limit salty condiments (patis, toyo, bagoong). Drink 6–8 glasses water daily (unless restricted).',
+              'title': 'Diet',
+              'bullets': [
+                'Cook food with less oil and salt (examples: grilled fish, pinakbet, boiled chicken).',
+                'Reduce fast food meals to once a week or less.',
+                'Eat at least one serving of fruits daily such as banana, guava, mango, or papaya. Limit salty condiments like patis, toyo, and bagoong.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Exercise Routine for Adults',
-              'description':
-                  'Exercise 150 mins/week (e.g., brisk walk/cycle). Add resistance training 2x/week (bodyweight, dumbbells). Stretch or yoga 5–10 mins/day.',
+              'title': 'Exercise',
+              'bullets': [
+                'Walk or bike to work if possible to increase daily activity.',
+                'Exercise at least 150 minutes per week (e.g., brisk walking or cycling 30 minutes, 5 days a week).',
+                'Add resistance training 2 times per week (bodyweight exercises, dumbbells, or water bottles).'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Lifestyle Changes for Adults',
-              'description':
-                  'Avoid smoking, limit alcohol. Sleep 7–8 hrs with regular bedtime routine. Maintain healthy weight (BMI <25).',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Monitor your blood pressure at least once a month if at risk (family history, overweight, stressful job).',
+                'Avoid smoking and limit alcohol intake.',
+                'Manage stress through meditation, hobbies, or regular relaxation techniques. Sleep at least 7–8 hours per night.'
+              ],
               'priority': 'medium',
             },
           ]);
@@ -762,21 +813,30 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         case '40-49':
           recommendations.addAll([
             {
-              'title': 'Preventive Diet for Middle-aged Adults',
-              'description':
-                  'Eat high-fiber meals (brown rice, mongo, vegetables). Add potassium-rich fruits (saba, melon, papaya). Drink 6–8 glasses water daily (unless restricted).',
+              'title': 'Diet',
+              'bullets': [
+                'Eat high-fiber meals such as brown rice, mongo, and vegetables.',
+                'Limit fatty meats like lechon kawali or crispy pata.',
+                'Include potassium-rich fruits daily such as saba, melon, or papaya. Drink 6–8 glasses of water daily unless otherwise restricted.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Exercise Routine for Middle-aged Adults',
-              'description':
-                  'Brisk walk/jog 30 mins daily. Join community Zumba/aerobics. Stretch daily 5–10 mins.',
+              'title': 'Exercise',
+              'bullets': [
+                'Do brisk walking or jogging 30 minutes daily.',
+                'Join community exercise programs like Zumba or aerobics.',
+                'Include strength exercises like lunges, planks, or resistance bands 2–3 times per week.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Lifestyle Changes for Middle-aged Adults',
-              'description':
-                  'Maintain healthy weight. Manage stress through hobbies, prayer, or relaxation exercises. Avoid smoking and limit alcohol intake.',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Get annual BP check-ups and maintain healthy weight.',
+                'Manage stress through hobbies, prayer, or relaxation exercises.',
+                'Avoid smoking and limit alcohol intake.'
+              ],
               'priority': 'medium',
             },
           ]);
@@ -784,21 +844,30 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         case '50-59':
           recommendations.addAll([
             {
-              'title': 'Preventive Diet for Pre-seniors',
-              'description':
-                  'Eat high-fiber meals (brown rice, mongo, vegetables). Add potassium-rich fruits (saba, melon, papaya). Drink 6–8 glasses water daily (unless restricted).',
+              'title': 'Diet',
+              'bullets': [
+                'Eat high-fiber meals such as brown rice, mongo, and vegetables.',
+                'Limit fatty meats like lechon kawali or crispy pata.',
+                'Include potassium-rich fruits daily such as saba, melon, or papaya. Drink 6–8 glasses of water daily unless otherwise restricted.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Exercise Routine for Pre-seniors',
-              'description':
-                  'Do brisk walking, swimming, biking, or Zumba 150 mins/week. Add light resistance training 2x/week. Stretch daily 5–10 mins.',
+              'title': 'Exercise',
+              'bullets': [
+                'Engage in brisk walking, swimming, biking, dancing (Zumba) for 150 minutes per week.',
+                'Add light weightlifting or resistance band exercises 2 times per week.',
+                'Stretch daily to improve flexibility (5-10 mins/day). Do active household chores for additional movement.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Lifestyle Changes for Pre-seniors',
-              'description':
-                  'Monitor weight/waist monthly. Avoid smoking, limit alcohol. Do hobbies or relaxation to lower stress.',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Get annual medical check-ups to monitor blood pressure and cholesterol.',
+                'Monitor weight and waistline monthly.',
+                'Reduce alcohol and completely avoid smoking. Engage in hobbies or relaxation activities to lower stress.'
+              ],
               'priority': 'medium',
             },
           ]);
@@ -806,21 +875,30 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         case '60-69':
           recommendations.addAll([
             {
-              'title': 'Preventive Diet for Seniors',
-              'description':
-                  'Eat soft, low-salt meals (lugaw with gulay, tinola). Ensure protein from fish, eggs, or tofu. Drink enough fluids unless restricted.',
+              'title': 'Diet',
+              'bullets': [
+                'Eat soft, low-salt meals such as lugaw with vegetables and tinola.',
+                'Consume daily servings of fruits (banana, papaya).',
+                'Ensure protein intake with fish, eggs, or tofu. Drink adequate fluids, unless restricted. Limit salty condiments (patis, bagoong, toyo).'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Exercise Routine for Seniors',
-              'description':
-                  'Brisk walk or light jog 30 mins daily. Stretch or yoga 5–10 mins/day. Avoid long sitting; move often.',
+              'title': 'Exercise',
+              'bullets': [
+                'Do brisk walking or light jogging for 30 minutes daily.',
+                'Add balance training (heel-to-toe walking, standing on one foot with support, side leg raises) for 10-15 mins/session, 3 times per week.',
+                'Try stretching or yoga for flexibility. (5-10 mins/day). Avoid long periods of sitting; stand and move often.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Lifestyle Changes for Seniors',
-              'description':
-                  'Maintain an active lifestyle with social activities. Ensure a safe home environment to prevent falls. Avoid smoking and limit alcohol intake.',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Get blood pressure checked at least once a month.',
+                'Maintain an active lifestyle with social activities.',
+                'Ensure a safe home environment to prevent falls. Avoid smoking and limit alcohol intake.'
+              ],
               'priority': 'medium',
             },
           ]);
@@ -828,21 +906,30 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         case '70-79':
           recommendations.addAll([
             {
-              'title': 'Preventive Diet for Elderly',
-              'description':
-                  'Prepare easy-to-chew, low-salt meals (malunggay soup, mashed kalabasa). Drink enough water unless restricted. Eat small, frequent meals.',
+              'title': 'Diet',
+              'bullets': [
+                'Prepare easy-to-chew, low-salt meals like malunggay soup or mashed kalabasa.',
+                'Ensure daily hydration unless restricted by a doctor.',
+                'Consume fruits daily such as banana, melon, or papaya. Avoid instant soups, dried fish, and canned foods. Serve small, frequent meals.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Exercise Routine for Elderly',
-              'description':
-                  'Light walk 20–30 mins daily. Do chair/seated exercises 5–10 mins, 3x/week. Move regularly to prevent stiffness.',
+              'title': 'Exercise',
+              'bullets': [
+                'Do light walking 20–30 minutes daily at a comfortable pace.',
+                'Practice chair or seated exercises for mobility 5-10 mins, 3 times per week.',
+                'Include balance training for 5-10 mins at least 3 times per week. Perform gentle stretching for 5-10 mins daily.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'Lifestyle Changes for Elderly',
-              'description':
-                  'Keep home safe (lighting, clutter-free). Stay socially connected (family, friends, community). Avoid smoking, limit alcohol.',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Maintain a consistent sleep routine (7–9 hours daily).',
+                'Keep the home safe to avoid falls (good lighting, clutter-free).',
+                'Stay socially connected with family, friends, or community. Avoid smoking and minimize alcohol intake.'
+              ],
               'priority': 'medium',
             },
           ]);
@@ -850,21 +937,30 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         default:
           recommendations.addAll([
             {
-              'title': 'General Preventive Diet',
-              'description':
-                  'Maintain a balanced diet rich in fruits, vegetables, and whole grains. Limit sodium and added sugars. Stay hydrated with 6-8 glasses of water daily.',
+              'title': 'Diet',
+              'bullets': [
+                'Maintain a balanced diet rich in fruits, vegetables, and whole grains.',
+                'Limit sodium and added sugars.',
+                'Stay hydrated with 6-8 glasses of water daily.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'General Exercise Guidelines',
-              'description':
-                  'Aim for at least 150 minutes of moderate-intensity aerobic activity per week. Include muscle-strengthening activities twice a week. Add flexibility exercises daily.',
+              'title': 'Exercise',
+              'bullets': [
+                'Aim for at least 150 minutes of moderate-intensity aerobic activity per week.',
+                'Include muscle-strengthening activities twice a week.',
+                'Add flexibility exercises daily.'
+              ],
               'priority': 'high',
             },
             {
-              'title': 'General Lifestyle Recommendations',
-              'description':
-                  'Maintain a consistent sleep schedule. Manage stress through healthy coping mechanisms. Avoid smoking and limit alcohol consumption.',
+              'title': 'Lifestyle Changes',
+              'bullets': [
+                'Maintain a consistent sleep schedule.',
+                'Manage stress through healthy coping mechanisms.',
+                'Avoid smoking and limit alcohol consumption.'
+              ],
               'priority': 'medium',
             },
           ]);
@@ -875,8 +971,10 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     if (hasHypertension) {
       recommendations.add({
         'title': 'Exercise Reminder',
-        'description':
-            'Consult your doctor before starting new exercises to ensure they\'re safe and appropriate. Avoid overexertion and listen to your body.',
+        'bullets': [
+          'Consult your doctor before starting new exercises to ensure they\'re safe and appropriate.',
+          'Avoid overexertion and listen to your body.'
+        ],
         'priority': 'high',
       });
     }
@@ -1176,6 +1274,18 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                               ),
                             ),
                             pw.SizedBox(width: 10),
+                            // Add icon representation in PDF
+                            pw.Container(
+                              width: 12,
+                              height: 12,
+                              decoration: pw.BoxDecoration(
+                                color: rec['priority'] == 'high'
+                                    ? PdfColors.red
+                                    : PdfColors.orange,
+                                shape: pw.BoxShape.circle,
+                              ),
+                            ),
+                            pw.SizedBox(width: 5),
                             pw.Expanded(
                               child: pw.Text(
                                 rec['title'],
@@ -1188,10 +1298,45 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                           ],
                         ),
                         pw.SizedBox(height: 5),
-                        pw.Text(
-                          rec['description'],
-                          style: const pw.TextStyle(fontSize: 12),
-                        ),
+                        // Check if recommendation has bullets
+                        if (rec.containsKey('bullets'))
+                          ...((rec['bullets'] as List<String>)
+                              .map((bullet) => pw.Padding(
+                                    padding:
+                                        const pw.EdgeInsets.only(bottom: 4),
+                                    child: pw.Row(
+                                      crossAxisAlignment:
+                                          pw.CrossAxisAlignment.start,
+                                      children: [
+                                        pw.Container(
+                                          margin: const pw.EdgeInsets.only(
+                                              top: 5, right: 6),
+                                          width: 4,
+                                          height: 4,
+                                          decoration: pw.BoxDecoration(
+                                            color: rec['priority'] == 'high'
+                                                ? PdfColors.red
+                                                : PdfColors.orange,
+                                            shape: pw.BoxShape.circle,
+                                          ),
+                                        ),
+                                        pw.Expanded(
+                                          child: pw.Text(
+                                            bullet,
+                                            style: const pw.TextStyle(
+                                                fontSize: 12),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ))
+                              .toList())
+                        else
+                          // Fallback to description if bullets are not available
+                          pw.Text(
+                            rec['description'],
+                            style: const pw.TextStyle(fontSize: 12),
+                          ),
                       ],
                     ),
                   ),
@@ -1309,9 +1454,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Icon(
-                                    recommendation['priority'] == 'high'
-                                        ? Icons.warning_amber
-                                        : Icons.info,
+                                    _getCategoryIcon(recommendation['title']),
                                     size: 20,
                                     color: recommendation['priority'] == 'high'
                                         ? healthRed
@@ -1329,12 +1472,53 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
-                            TextWidget(
-                              text: recommendation['description'],
-                              fontSize: 14,
-                              color: textPrimary,
-                            ),
+                            const SizedBox(height: 12),
+                            // Check if recommendation has bullets
+                            if (recommendation.containsKey('bullets'))
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: (recommendation['bullets']
+                                        as List<String>)
+                                    .map((bullet) => Padding(
+                                          padding:
+                                              const EdgeInsets.only(bottom: 6),
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Container(
+                                                margin: const EdgeInsets.only(
+                                                    top: 6, right: 8),
+                                                width: 6,
+                                                height: 6,
+                                                decoration: BoxDecoration(
+                                                  color: recommendation[
+                                                              'priority'] ==
+                                                          'high'
+                                                      ? healthRed
+                                                      : accent,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: TextWidget(
+                                                  text: bullet,
+                                                  fontSize: 14,
+                                                  color: textPrimary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ))
+                                    .toList(),
+                              )
+                            else
+                              // Fallback to description if bullets are not available
+                              TextWidget(
+                                text: recommendation['description'],
+                                fontSize: 14,
+                                color: textPrimary,
+                              ),
                           ],
                         ),
                       ),
@@ -1497,6 +1681,24 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     } else {
       // Default to a safe age group
       return '30-39 y.o.';
+    }
+  }
+
+  // Helper method to get the appropriate icon for each category
+  IconData _getCategoryIcon(String title) {
+    switch (title) {
+      case 'Diet':
+        return Icons.restaurant;
+      case 'Exercise':
+        return Icons.fitness_center;
+      case 'Lifestyle Changes':
+        return Icons.psychology;
+      case 'Medication Adherence':
+        return Icons.medication;
+      case 'Exercise Reminder':
+        return Icons.timer;
+      default:
+        return Icons.info;
     }
   }
 }
