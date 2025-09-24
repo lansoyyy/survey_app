@@ -21,6 +21,8 @@ class CustomBottomNavigationBar extends StatelessWidget {
       unselectedItemColor: textLight,
       showSelectedLabels: true,
       showUnselectedLabels: true,
+      selectedLabelStyle: const TextStyle(fontSize: 11),
+      unselectedLabelStyle: const TextStyle(fontSize: 11),
       items: const [
         BottomNavigationBarItem(
           icon: Icon(Icons.question_answer_outlined),
@@ -31,6 +33,11 @@ class CustomBottomNavigationBar extends StatelessWidget {
           icon: Icon(Icons.monitor_heart_outlined),
           activeIcon: Icon(Icons.monitor_heart),
           label: 'Monitoring',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.medication_outlined),
+          activeIcon: Icon(Icons.medication),
+          label: 'Medication',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.analytics_outlined),

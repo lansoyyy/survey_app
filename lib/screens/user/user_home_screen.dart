@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:survey_app/screens/user/survey/survey_screen.dart';
 import 'package:survey_app/screens/user/monitoring/monitoring_screen.dart';
 import 'package:survey_app/screens/user/analysis/analysis_screen.dart';
+import 'package:survey_app/screens/user/medication/medication_screen.dart';
 import 'package:survey_app/services/auth_service.dart';
 import 'package:survey_app/widgets/custom_app_bar.dart';
 import 'package:survey_app/widgets/custom_bottom_navigation_bar.dart';
@@ -26,6 +27,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     _screens = [
       SurveyScreen(),
       const MonitoringScreen(),
+      const MedicationScreen(),
       const AnalysisScreen(),
     ];
   }
@@ -98,6 +100,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       case 1:
         return 'Monitoring';
       case 2:
+        return 'Medication';
+      case 3:
         return 'Management';
       default:
         return 'Hypertension App';
