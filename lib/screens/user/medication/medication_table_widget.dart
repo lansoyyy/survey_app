@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:survey_app/models/medication.dart';
+import 'package:survey_app/utils/colors.dart';
 import 'package:survey_app/widgets/button_widget.dart';
+import 'package:survey_app/widgets/text_widget.dart';
 
 class MedicationTableWidget extends StatelessWidget {
   final List<Medication> medications;

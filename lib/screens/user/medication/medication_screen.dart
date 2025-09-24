@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:survey_app/models/medication.dart';
 import 'package:survey_app/services/medication_service.dart';
+import 'package:survey_app/utils/colors.dart';
 import 'package:survey_app/widgets/custom_app_bar.dart';
 import 'package:survey_app/widgets/button_widget.dart';
+import 'package:survey_app/widgets/text_widget.dart';
 import 'add_medication_dialog.dart';
 import 'medication_table_widget.dart';
 import 'consultation_widget.dart';
 import 'consultation_dialog.dart';
 import 'notification_widget.dart';
+import 'bp_reminder_dialog.dart';
 
 class MedicationScreen extends StatefulWidget {
   const MedicationScreen({super.key});
@@ -34,30 +37,53 @@ class _MedicationScreenState extends State<MedicationScreen> {
   }
 
   Future<void> _loadMedications() async {
-    final medications = await _medicationService.getMedications();
-    setState(() {
-      _medications = medications;
-    });
+    try {
+      final medications = await _medicationService.getMedications();
+      setState(() {
+        _medications = medications;
+      });
+    } catch (e) {
+      print('Error loading medications: $e');
+      setState(() {
+        _medications = [];
+      });
+    }
   }
 
   Future<void> _loadConsultation() async {
-    final consultation = await _medicationService.getConsultation();
-    if (consultation != null) {
+    try {
+      final consultation = await _medicationService.getConsultation();
+      if (consultation != null) {
+        setState(() {
+          _consultationDate = consultation['date'] != null
+              ? DateTime.parse(consultation['date'])
+              : null;
+          _physicianName = consultation['physicianName'];
+          _clinicAddress = consultation['clinicAddress'];
+        });
+      }
+    } catch (e) {
+      print('Error loading consultation: $e');
       setState(() {
-        _consultationDate = consultation['date'] != null
-            ? DateTime.parse(consultation['date'])
-            : null;
-        _physicianName = consultation['physicianName'];
-        _clinicAddress = consultation['clinicAddress'];
+        _consultationDate = null;
+        _physicianName = null;
+        _clinicAddress = null;
       });
     }
   }
 
   Future<void> _loadNotifications() async {
-    final notifications = await _medicationService.getNotifications();
-    setState(() {
-      _notifications = notifications;
-    });
+    try {
+      final notifications = await _medicationService.getNotifications();
+      setState(() {
+        _notifications = notifications;
+      });
+    } catch (e) {
+      print('Error loading notifications: $e');
+      setState(() {
+        _notifications = [];
+      });
+    }
   }
 
   void _showAddMedicationDialog({Medication? medication}) {
@@ -124,12 +150,35 @@ class _MedicationScreenState extends State<MedicationScreen> {
   }
 
   void _addBPReadingNotification() async {
+    showDialog(
+      context: context,
+      builder: (context) => BPReminderDialog(
+        onSave: (time) async {
+          await _medicationService.saveNotification({
+            'id': DateTime.now().millisecondsSinceEpoch.toString(),
+            'type': 'bp_reading',
+            'title': 'BP Reading Reminder',
+            'message':
+                'Time to take your blood pressure reading at ${time.format(context)}',
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+            'time': time.format(context),
+          });
+          _loadNotifications();
+        },
+      ),
+    );
+  }
+
+  void _setNotificationFrequency(String frequency, TimeOfDay time) async {
     await _medicationService.saveNotification({
       'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'type': 'bp_reading',
-      'title': 'BP Reading Reminder',
-      'message': 'Time to take your blood pressure reading',
+      'type': 'frequency_setting',
+      'title': 'Notification Frequency Set',
+      'message':
+          'Notifications will be sent $frequency at ${time.format(context)}',
       'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'frequency': frequency,
+      'time': time.format(context),
     });
     _loadNotifications();
   }
@@ -137,61 +186,201 @@ class _MedicationScreenState extends State<MedicationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(
-        title: 'MEDICATION',
-        showBackButton: false,
+      body: Container(
+        color: background,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header section with title and add button
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: surfaceBlue,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    SizedBox(
+                      width: 180,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextWidget(
+                            text: 'Medication Tracker',
+                            fontSize: 22,
+                            color: textPrimary,
+                            fontFamily: 'Bold',
+                          ),
+                          const SizedBox(height: 4),
+                          TextWidget(
+                            text: 'Manage your medications and appointments',
+                            fontSize: 14,
+                            color: textSecondary,
+                          ),
+                        ],
+                      ),
+                    ),
+                    ButtonWidget(
+                      label: 'Add Medication',
+                      onPressed: () => _showAddMedicationDialog(),
+                      width: 160,
+                      height: 45,
+                      fontSize: 14,
+                      color: accent,
+                      textColor: textOnAccent,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Medication section
+              _buildSectionCard(
+                title: 'Today\'s Medication Schedule',
+                icon: Icons.medication,
+                iconColor: primary,
+                child: MedicationTableWidget(
+                  medications: _medications,
+                  onEdit: (medication) =>
+                      _showAddMedicationDialog(medication: medication),
+                  onDelete: _deleteMedication,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Consultation section
+              _buildSectionCard(
+                title: 'Next Consultation',
+                icon: Icons.calendar_today,
+                iconColor: healthGreen,
+                child: ConsultationWidget(
+                  consultationDate: _consultationDate,
+                  physicianName: _physicianName,
+                  clinicAddress: _clinicAddress,
+                  onEdit: _showConsultationDialog,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Notifications section
+              _buildSectionCard(
+                title: 'Notifications',
+                icon: Icons.notifications,
+                iconColor: accent,
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextWidget(
+                          text: 'Reminders & Alerts',
+                          fontSize: 16,
+                          color: textSecondary,
+                        ),
+                        ButtonWidget(
+                          label: 'Add BP Reminder',
+                          onPressed: _addBPReadingNotification,
+                          width: 160,
+                          fontSize: 12,
+                          height: 36,
+                          color: primaryLight,
+                          textColor: textPrimary,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    NotificationWidget(
+                      notifications: _notifications,
+                      onClear: _clearNotification,
+                      onSetFrequency: _setNotificationFrequency,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ButtonWidget(
-              label: 'Add Medication',
-              onPressed: () => _showAddMedicationDialog(),
-              width: 200,
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    required Widget child,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: surfaceBlue,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
             ),
-            const SizedBox(height: 24),
-            MedicationTableWidget(
-              medications: _medications,
-              onEdit: (medication) =>
-                  _showAddMedicationDialog(medication: medication),
-              onDelete: _deleteMedication,
-            ),
-            const SizedBox(height: 24),
-            ConsultationWidget(
-              consultationDate: _consultationDate,
-              physicianName: _physicianName,
-              clinicAddress: _clinicAddress,
-              onEdit: _showConsultationDialog,
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Row(
               children: [
-                const Text(
-                  'Notifications',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: iconColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: iconColor,
+                    size: 24,
                   ),
                 ),
-                ButtonWidget(
-                  label: 'Add BP Reminder',
-                  onPressed: _addBPReadingNotification,
-                  width: 160,
-                  fontSize: 14,
-                  height: 40,
+                const SizedBox(width: 12),
+                TextWidget(
+                  text: title,
+                  fontSize: 18,
+                  color: textPrimary,
+                  fontFamily: 'Bold',
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            NotificationWidget(
-              notifications: _notifications,
-              onClear: _clearNotification,
-            ),
-          ],
-        ),
+          ),
+
+          // Section content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: child,
+          ),
+        ],
       ),
     );
   }
