@@ -403,7 +403,7 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
                           child: ListTile(
                             title: TextWidget(
                               text: 'Male',
-                              fontSize: 16,
+                              fontSize: 14,
                               color: textPrimary,
                             ),
                             leading: Radio<String>(
@@ -421,7 +421,7 @@ class _UserSignupScreenState extends State<UserSignupScreen> {
                           child: ListTile(
                             title: TextWidget(
                               text: 'Female',
-                              fontSize: 16,
+                              fontSize: 14,
                               color: textPrimary,
                             ),
                             leading: Radio<String>(

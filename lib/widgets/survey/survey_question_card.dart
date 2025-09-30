@@ -32,6 +32,9 @@ class SurveyQuestionCard extends StatefulWidget {
 class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
   late TextEditingController _textController;
   List<bool>? _multipleChoiceSelections;
+  late TextEditingController _heightController;
+  late TextEditingController _weightController;
+  double? _calculatedBMI;
 
   @override
   void initState() {
@@ -40,6 +43,9 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
         text: widget.currentValue is String
             ? widget.currentValue as String
             : null);
+
+    _heightController = TextEditingController();
+    _weightController = TextEditingController();
 
     // Initialize _multipleChoiceSelections only for multiple_choice questions
     if (widget.questionType == 'multiple_choice' && widget.options != null) {
@@ -52,6 +58,18 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
           _multipleChoiceSelections![i] =
               widget.currentValue.contains(widget.options![i]);
         }
+      }
+    }
+
+    // Initialize BMI values if we have current values
+    if (widget.questionType == 'bmi_calculation' &&
+        widget.currentValue != null) {
+      if (widget.currentValue is Map) {
+        _heightController.text =
+            widget.currentValue['height']?.toString() ?? '';
+        _weightController.text =
+            widget.currentValue['weight']?.toString() ?? '';
+        _calculatedBMI = widget.currentValue['bmi']?.toDouble();
       }
     }
   }
@@ -84,6 +102,8 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
   @override
   void dispose() {
     _textController.dispose();
+    _heightController.dispose();
+    _weightController.dispose();
     super.dispose();
   }
 
@@ -92,6 +112,72 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
     setState(() {
       _textController.clear();
     });
+  }
+
+  // Method to calculate BMI
+  void _calculateBMI() {
+    final heightText = _heightController.text.trim();
+    final weightText = _weightController.text.trim();
+
+    if (heightText.isNotEmpty && weightText.isNotEmpty) {
+      final height = double.tryParse(heightText);
+      final weight = double.tryParse(weightText);
+
+      if (height != null && weight != null && height > 0) {
+        // BMI = weight (kg) / (height (m))^2
+        final heightInMeters = height / 100; // Convert cm to m
+        final bmi = weight / (heightInMeters * heightInMeters);
+
+        setState(() {
+          _calculatedBMI = bmi;
+        });
+
+        // Determine BMI category and update the answer
+        String bmiCategory;
+        if (bmi < 18.5) {
+          bmiCategory = 'Underweight';
+        } else if (bmi < 25) {
+          bmiCategory = '18.5–24.9';
+        } else if (bmi < 30) {
+          bmiCategory = '25–29.9';
+        } else {
+          bmiCategory = '30+';
+        }
+
+        widget.onAnswerChanged({
+          'height': height,
+          'weight': weight,
+          'bmi': bmi,
+          'category': bmiCategory,
+        });
+      }
+    }
+  }
+
+  // Method to get BMI category
+  String _getBMICategory(double bmi) {
+    if (bmi < 18.5) {
+      return 'Underweight';
+    } else if (bmi < 25) {
+      return 'Normal (18.5–24.9)';
+    } else if (bmi < 30) {
+      return 'Overweight (25–29.9)';
+    } else {
+      return 'Obese (30+)';
+    }
+  }
+
+  // Method to get BMI category color
+  Color _getBMICategoryColor(double bmi) {
+    if (bmi < 18.5) {
+      return Colors.blue; // Underweight
+    } else if (bmi < 25) {
+      return Colors.green; // Normal
+    } else if (bmi < 30) {
+      return Colors.orange; // Overweight
+    } else {
+      return Colors.red; // Obese
+    }
   }
 
   @override
@@ -104,31 +190,33 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextWidget(
-                    text: widget.questionText,
-                    fontSize: 16,
-                    color: textPrimary,
-                    fontFamily: 'Bold',
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: TextWidget(
+                      text: widget.questionText,
+                      fontSize: 16,
+                      color: textPrimary,
+                      fontFamily: 'Bold',
+                    ),
                   ),
-                ),
-                if (widget.isRequired)
-                  TextWidget(
-                    text: ' *',
-                    fontSize: 16,
-                    color: healthRed,
-                    fontFamily: 'Bold',
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildQuestionInput(),
-          ],
+                  if (widget.isRequired)
+                    TextWidget(
+                      text: ' *',
+                      fontSize: 16,
+                      color: healthRed,
+                      fontFamily: 'Bold',
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildQuestionInput(),
+            ],
+          ),
         ),
       ),
     );
@@ -330,6 +418,74 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
                 ),
               ],
             ),
+          ],
+        );
+
+      case 'bmi_calculation':
+        return Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: AppTextFormField(
+                    controller: _heightController,
+                    labelText: 'Height (cm)',
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.next,
+                    onChanged: (value) {
+                      _calculateBMI();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: AppTextFormField(
+                    controller: _weightController,
+                    labelText: 'Weight (kg)',
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.done,
+                    onChanged: (value) {
+                      _calculateBMI();
+                    },
+                  ),
+                ),
+              ],
+            ),
+            if (_calculatedBMI != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: primary.withOpacity(0.3)),
+                ),
+                child: Column(
+                  children: [
+                    TextWidget(
+                      text: 'Your BMI',
+                      fontSize: 14,
+                      color: textLight,
+                      fontFamily: 'Medium',
+                    ),
+                    const SizedBox(height: 4),
+                    TextWidget(
+                      text: _calculatedBMI!.toStringAsFixed(1),
+                      fontSize: 24,
+                      color: primary,
+                      fontFamily: 'Bold',
+                    ),
+                    const SizedBox(height: 4),
+                    TextWidget(
+                      text: _getBMICategory(_calculatedBMI!),
+                      fontSize: 14,
+                      color: _getBMICategoryColor(_calculatedBMI!),
+                      fontFamily: 'Medium',
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         );
 

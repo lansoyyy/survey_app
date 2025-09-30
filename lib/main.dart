@@ -49,7 +49,10 @@ class MyApp extends StatelessWidget {
         '/': (context) => const SplashScreen(),
         '/user/login': (context) => const UserLoginScreen(),
         '/user/signup': (context) => const UserSignupScreen(),
-        '/user/home': (context) => const UserHomeScreen(),
+        '/user/home': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          return UserHomeScreen(tabIndex: args as int?);
+        },
         '/admin/login': (context) => const AdminLoginScreen(),
         '/admin/home': (context) => const AdminHomeScreen(),
       },

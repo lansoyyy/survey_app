@@ -9,7 +9,9 @@ import 'package:survey_app/widgets/custom_app_bar.dart';
 import 'package:survey_app/widgets/custom_bottom_navigation_bar.dart';
 
 class UserHomeScreen extends StatefulWidget {
-  const UserHomeScreen({super.key});
+  final int? tabIndex;
+
+  const UserHomeScreen({super.key, this.tabIndex});
 
   @override
   State<UserHomeScreen> createState() => _UserHomeScreenState();
@@ -24,6 +26,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   @override
   void initState() {
     super.initState();
+    // Set the initial tab index if provided
+    _currentIndex = widget.tabIndex ?? 0;
     _screens = [
       SurveyScreen(),
       const MonitoringScreen(),
@@ -67,28 +71,34 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: CustomAppBar(
-        title: _getAppBarTitle(),
-        showBackButton: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.admin_panel_settings, color: Colors.white),
-            onPressed: () {
-              // Navigate to admin login
-              Navigator.pushNamed(context, '/admin/login');
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: _logout,
-          ),
-        ],
-      ),
-      body: _screens[_currentIndex],
-      bottomNavigationBar: CustomBottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: _onTabTapped,
+    return WillPopScope(
+      onWillPop: () async {
+        // Prevent the user from leaving the screen when back button is pressed
+        return false;
+      },
+      child: Scaffold(
+        appBar: CustomAppBar(
+          title: _getAppBarTitle(),
+          showBackButton: false,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.admin_panel_settings, color: Colors.white),
+              onPressed: () {
+                // Navigate to admin login
+                Navigator.pushNamed(context, '/admin/login');
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.white),
+              onPressed: _logout,
+            ),
+          ],
+        ),
+        body: _screens[_currentIndex],
+        bottomNavigationBar: CustomBottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: _onTabTapped,
+        ),
       ),
     );
   }

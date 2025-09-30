@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:survey_app/services/auth_service.dart';
 import 'package:survey_app/services/user_service.dart';
 import 'package:survey_app/models/survey_response.dart';
@@ -9,7 +10,7 @@ import 'package:survey_app/widgets/text_widget.dart';
 import 'package:survey_app/widgets/survey/survey_progress_indicator.dart';
 import 'package:survey_app/widgets/survey/survey_question_card.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:survey_app/screens/user/analysis/analysis_screen.dart';
+import 'package:survey_app/screens/user/user_home_screen.dart';
 
 class SurveyScreen extends StatefulWidget {
   const SurveyScreen({super.key});
@@ -20,14 +21,24 @@ class SurveyScreen extends StatefulWidget {
 
 class _SurveyScreenState extends State<SurveyScreen> {
   int _currentQuestionIndex = 0;
-  final Map<String, dynamic> _answers = {};
+  Map<String, dynamic> _answers = {};
   final AuthService _authService = AuthService();
   final UserService _userService = UserService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _isSubmitting = false;
   String _selectedCategory = 'biological_genetic';
   bool _hasSelectedCategory = false;
   bool _showSummary = false;
   String? _clearTrigger; // Used to trigger text field clearing
+  Map<String, dynamic>? _savedSurveyData; // To store saved survey data
+  bool _isLoadingSavedData = false;
+  Map<String, Map<String, dynamic>> _categoryCompletionStatus = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAllCategoriesCompletionStatus();
+  }
 
   // Survey questions organized by category
   final Map<String, List<Map<String, dynamic>>> _questionsByCategory = {
@@ -81,14 +92,14 @@ class _SurveyScreenState extends State<SurveyScreen> {
       {
         'id': 'genetic_test',
         'text':
-            '(Optional if available) Have you been tested for any genetic predisposition to hypertension?',
+            'Have you been tested for any genetic predisposition to hypertension?',
         'type': 'single_choice',
         'options': [
           'Yes, and results show increased risk',
           'Yes, no risk found',
           'No / Not tested'
         ],
-        'required': false,
+        'required': true,
         'category': 'Biological and Genetic Factors',
         'scores': {
           'Yes, and results show increased risk': 3,
@@ -117,25 +128,25 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'single_choice',
         'options': [
           'Struggling or low-income',
-          'Comfortable / middle-income',
-          'Well-off / high-income'
+          'Comfortable or middle-income',
+          'Well-off or high-income'
         ],
         'required': true,
         'category': 'Socioeconomic & Demographic Factors',
         'scores': {
           'Struggling or low-income': 2,
-          'Comfortable / middle-income': 1,
-          'Well-off / high-income': 2
+          'Comfortable or middle-income': 1,
+          'Well-off or high-income': 2
         },
       },
       {
         'id': 'residence',
         'text': 'Where do you currently live?',
         'type': 'single_choice',
-        'options': ['Urban area', 'Rural or provincial area'],
+        'options': ['Urban or City area', 'Rural or provincial area'],
         'required': true,
         'category': 'Socioeconomic & Demographic Factors',
-        'scores': {'Urban area': 1, 'Rural or provincial area': 0},
+        'scores': {'Urban or City area': 1, 'Rural or provincial area': 0},
       },
       {
         'id': 'living_arrangement',
@@ -158,10 +169,10 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'id': 'marital_status',
         'text': 'What is your marital status?',
         'type': 'single_choice',
-        'options': ['Widowed or Divorced', 'Single or Married'],
+        'options': ['Married', 'Single', 'Widowed', 'Divorced'],
         'required': true,
         'category': 'Socioeconomic & Demographic Factors',
-        'scores': {'Widowed or Divorced': 1, 'Single or Married': 0},
+        'scores': {'Married': 0, 'Single': 0, 'Widowed': 1, 'Divorced': 1},
       },
     ],
     'lifestyle_behavioral': [
@@ -214,13 +225,13 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'text': 'How would you describe your sleep pattern?',
         'type': 'single_choice',
         'options': [
-          'Irregular or insufficient (<6 hrs/night)',
+          'Irregular or insufficient (less than 6 hrs/night)',
           'Mostly regular (6–8 hrs/night)'
         ],
         'required': true,
         'category': 'Lifestyle and Behavioral Factors',
         'scores': {
-          'Irregular or insufficient (<6 hrs/night)': 1,
+          'Irregular or insufficient (less than 6 hrs/night)': 1,
           'Mostly regular (6–8 hrs/night)': 0
         },
       },
@@ -238,13 +249,13 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'text': 'How would you describe your meal planning habits?',
         'type': 'single_choice',
         'options': [
-          'I frequently eat out / don\'t plan meals',
+          'I frequently eat out or don\'t plan meals',
           'I try to eat balanced meals'
         ],
         'required': true,
         'category': 'Lifestyle and Behavioral Factors',
         'scores': {
-          'I frequently eat out / don\'t plan meals': 1,
+          'I frequently eat out or don\'t plan meals': 1,
           'I try to eat balanced meals': 0
         },
       },
@@ -278,39 +289,15 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'id': 'bmi',
         'text':
             'What is your Body Mass Index (BMI)? (optional: auto-calculate based on height/weight input)',
-        'type': 'single_choice',
-        'options': [
-          '25–29.9 (Overweight)',
-          '30+ (Obese)',
-          '18.5–24.9 (Normal)'
-        ],
+        'type': 'bmi_calculation',
         'required': true,
         'category': 'Dietary and Nutritional Factors',
-        'scores': {
-          '25–29.9 (Overweight)': 2,
-          '30+ (Obese)': 3,
-          '18.5–24.9 (Normal)': 0
-        },
-      },
-      {
-        'id': 'waist_circumference',
-        'text': 'Do you know your waist circumference or waist-to-hip ratio?',
-        'type': 'single_choice',
-        'options': [
-          'Yes, and it\'s high (male ≥90cm, female ≥80cm)',
-          'No or within normal range'
-        ],
-        'required': true,
-        'category': 'Dietary and Nutritional Factors',
-        'scores': {
-          'Yes, and it\'s high (male ≥90cm, female ≥80cm)': 2,
-          'No or within normal range': 0
-        },
+        'scores': {'25–29.9': 2, '30+': 3, '18.5–24.9': 0},
       },
       {
         'id': 'high_protein_fat',
         'text':
-            'How often do you eat high-protein/high-fat meals (e.g., meat-heavy, fried foods)?',
+            'How often do you eat high-protein or high-fat meals (e.g., Porkchop, Fried chicken, Sisig, Beef, Tuna)?',
         'type': 'single_choice',
         'options': ['Daily or often', 'Occasionally', 'Rarely'],
         'required': true,
@@ -320,7 +307,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
       {
         'id': 'potassium_calcium_fiber',
         'text':
-            'Do you include potassium, calcium, or fiber-rich foods in your diet?',
+            'Do you include potassium, calcium, or fiber-rich foods in your diet (e.g. saba, avocado, bananas, monggo, green leafy vegetables, kangkong, kamote)?',
         'type': 'single_choice',
         'options': ['Rarely', 'Occasionally', 'Daily'],
         'required': true,
@@ -350,10 +337,10 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'id': 'access_medication',
         'text': 'Do you have access to antihypertensive medications if needed?',
         'type': 'single_choice',
-        'options': ['No or uncertain', 'Yes'],
+        'options': ['No', 'Yes', 'I’m not sure'],
         'required': true,
         'category': 'Healthcare Access and Management Behaviors',
-        'scores': {'No or uncertain': 2, 'Yes': 0},
+        'scores': {'No': 2, 'Yes': 0, 'I’m not sure': 2},
       },
       {
         'id': 'bp_monitor',
@@ -372,16 +359,6 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'required': true,
         'category': 'Healthcare Access and Management Behaviors',
         'scores': {'Yes': 1, 'No': 0},
-      },
-      {
-        'id': 'medical_advice',
-        'text':
-            'Have you been advised by a healthcare provider on how to manage your blood pressure?',
-        'type': 'single_choice',
-        'options': ['No or not sure', 'Yes'],
-        'required': true,
-        'category': 'Healthcare Access and Management Behaviors',
-        'scores': {'No or not sure': 2, 'Yes': 0},
       },
       {
         'id': 'bp_awareness',
@@ -535,6 +512,164 @@ class _SurveyScreenState extends State<SurveyScreen> {
         _answers[questionId] = value;
       }
     });
+
+    // Save progress after each answer
+    _saveSurveyProgress();
+  }
+
+  // Save survey progress to Firestore
+  Future<void> _saveSurveyProgress() async {
+    if (_authService.currentUser == null || !_hasSelectedCategory) return;
+
+    try {
+      final surveyResponse = SurveyResponse(
+        responseId: '', // Will be generated by Firebase
+        userId: _authService.currentUser!.uid,
+        surveyId: _selectedCategory,
+        answers: _answers,
+        submittedAt: DateTime.now(),
+        riskScore: _calculateRiskScore(),
+        completionStatus: 'incomplete',
+      );
+
+      // Check if there's already a saved survey for this category
+      final querySnapshot = await _firestore
+          .collection('survey_responses')
+          .where('userId', isEqualTo: _authService.currentUser!.uid)
+          .where('surveyId', isEqualTo: _selectedCategory)
+          .where('completionStatus', isEqualTo: 'incomplete')
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        // Update existing survey
+        await querySnapshot.docs.first.reference
+            .update(surveyResponse.toJson());
+      } else {
+        // Create new survey
+        await _userService.submitSurveyResponse(surveyResponse);
+      }
+    } catch (e) {
+      debugPrint('Error saving survey progress: $e');
+    }
+  }
+
+  // Load saved survey progress
+  Future<void> _loadSavedSurveyProgress() async {
+    if (_authService.currentUser == null || !_hasSelectedCategory) return;
+
+    setState(() {
+      _isLoadingSavedData = true;
+    });
+
+    try {
+      final querySnapshot = await _firestore
+          .collection('survey_responses')
+          .where('userId', isEqualTo: _authService.currentUser!.uid)
+          .where('surveyId', isEqualTo: _selectedCategory)
+          .where('completionStatus', isEqualTo: 'incomplete')
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final savedData = querySnapshot.docs.first.data();
+        setState(() {
+          _savedSurveyData = savedData;
+          _answers = Map<String, dynamic>.from(savedData['answers'] ?? {});
+
+          // Calculate the current question index based on answered questions
+          int answeredCount = 0;
+          for (final question in _currentQuestions) {
+            if (_answers.containsKey(question['id'])) {
+              answeredCount++;
+            }
+          }
+
+          // Set the current question index to the first unanswered question
+          // or to the last question if all are answered
+          if (answeredCount < _currentQuestions.length) {
+            _currentQuestionIndex = answeredCount;
+          } else {
+            _currentQuestionIndex = _currentQuestions.length - 1;
+          }
+
+          _isLoadingSavedData = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingSavedData = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading saved survey progress: $e');
+      setState(() {
+        _isLoadingSavedData = false;
+      });
+    }
+  }
+
+  // Load completion status for all categories
+  Future<void> _loadAllCategoriesCompletionStatus() async {
+    if (_authService.currentUser == null) return;
+
+    setState(() {
+      _categoryCompletionStatus = {};
+    });
+
+    try {
+      for (final category in _questionsByCategory.keys) {
+        final status = await _getCategoryCompletionStatus(category);
+        setState(() {
+          _categoryCompletionStatus[category] = status;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading all categories completion status: $e');
+    }
+  }
+
+  // Get completion status for a specific category
+  Future<Map<String, dynamic>> _getCategoryCompletionStatus(
+      String category) async {
+    if (_authService.currentUser == null) {
+      return {'status': 'not_started', 'progress': 0.0};
+    }
+
+    try {
+      // Check for completed survey
+      final completedQuery = await _firestore
+          .collection('survey_responses')
+          .where('userId', isEqualTo: _authService.currentUser!.uid)
+          .where('surveyId', isEqualTo: category)
+          .where('completionStatus', isEqualTo: 'completed')
+          .get();
+
+      if (completedQuery.docs.isNotEmpty) {
+        return {'status': 'completed', 'progress': 1.0};
+      }
+
+      // Check for incomplete survey
+      final incompleteQuery = await _firestore
+          .collection('survey_responses')
+          .where('userId', isEqualTo: _authService.currentUser!.uid)
+          .where('surveyId', isEqualTo: category)
+          .where('completionStatus', isEqualTo: 'incomplete')
+          .get();
+
+      if (incompleteQuery.docs.isNotEmpty) {
+        final savedData = incompleteQuery.docs.first.data();
+        final answers = savedData['answers'] as Map<String, dynamic>;
+        final totalQuestions = _questionsByCategory[category]?.length ?? 0;
+        final answeredQuestions = answers.length;
+        final progress =
+            totalQuestions > 0 ? answeredQuestions / totalQuestions : 0.0;
+
+        return {'status': 'in_progress', 'progress': progress};
+      }
+
+      return {'status': 'not_started', 'progress': 0.0};
+    } catch (e) {
+      debugPrint('Error getting category completion status: $e');
+      return {'status': 'not_started', 'progress': 0.0};
+    }
   }
 
   void _nextQuestion() {
@@ -617,6 +752,12 @@ class _SurveyScreenState extends State<SurveyScreen> {
             // For multiple choice questions, add scores for each selected option
             for (final selectedOption in answer) {
               score += (scores[selectedOption] ?? 0).toDouble();
+            }
+          } else if (question['type'] == 'bmi_calculation' && answer is Map) {
+            // For BMI calculation questions, use the category to determine score
+            final category = answer['category'] as String?;
+            if (category != null) {
+              score += (scores[category] ?? 0).toDouble();
             }
           } else if (answer is String) {
             // For single choice questions
@@ -742,13 +883,27 @@ class _SurveyScreenState extends State<SurveyScreen> {
           _clearTrigger = DateTime.now().toString(); // Trigger clearing
         });
 
-        // Navigate to AnalysisScreen after successful submission
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) =>
-                AnalysisScreen(surveyResponse: surveyResponse),
-          ),
-        );
+        // Refresh the completion status for all categories
+        _loadAllCategoriesCompletionStatus();
+
+        // Switch to Management Tab after successful submission
+        // We'll use a more reliable approach by passing parameters in the route
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        Navigator.of(context).pushReplacementNamed('/user/home',
+            arguments: 3); // 3 is the Management tab index
+
+        // Show a toast message to guide the user
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Fluttertoast.showToast(
+              msg:
+                  'Survey submitted! Please check the Management tab for your results.',
+              backgroundColor: healthGreen,
+              textColor: Colors.white,
+              toastLength: Toast.LENGTH_LONG,
+            );
+          }
+        });
       }
     } catch (e) {
       // Use debugPrint instead of print for production code
@@ -778,6 +933,12 @@ class _SurveyScreenState extends State<SurveyScreen> {
       _hasSelectedCategory = true; // Set the flag when category is selected
       _clearTrigger = DateTime.now().toString(); // Trigger clearing
     });
+
+    // Load saved survey progress for this category
+    _loadSavedSurveyProgress();
+
+    // Refresh the completion status for all categories
+    _loadAllCategoriesCompletionStatus();
 
     // Add a small delay to ensure the state is updated before logging
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -833,9 +994,12 @@ class _SurveyScreenState extends State<SurveyScreen> {
                     debugPrint(
                         'State reset: currentIndex=$_currentQuestionIndex, answersCount=${_answers.length}, hasSelectedCategory=$_hasSelectedCategory');
                   });
+
+                  // Refresh the completion status for all categories
+                  _loadAllCategoriesCompletionStatus();
                 },
                 child: TextWidget(
-                  text: 'Change Category',
+                  text: 'Return to Home',
                   fontSize: 14,
                   color: primary,
                 ),
@@ -1021,29 +1185,86 @@ class _SurveyScreenState extends State<SurveyScreen> {
   }
 
   Widget _buildCategoryCard(String title, String subtitle, String category) {
+    final completionStatus = _categoryCompletionStatus[category];
+    final status = completionStatus?['status'] ?? 'not_started';
+    final progress = completionStatus?['progress'] ?? 0.0;
+
+    Color statusColor;
+    String statusText;
+    IconData statusIcon;
+
+    switch (status) {
+      case 'completed':
+        statusColor = Colors.green;
+        statusText = 'Completed';
+        statusIcon = Icons.check_circle;
+        break;
+      case 'in_progress':
+        statusColor = Colors.orange;
+        statusText = '${(progress * 100).toInt()}% Complete';
+        statusIcon = Icons.timelapse;
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusText = 'Not Started';
+        statusIcon = Icons.radio_button_unchecked;
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      child: ListTile(
-        title: TextWidget(
-          text: title,
-          fontSize: 18,
-          color: textPrimary,
-          fontFamily: 'Bold',
-        ),
-        subtitle: TextWidget(
-          text: subtitle,
-          fontSize: 14,
-          color: textLight,
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios, color: primary),
-        onTap: () {
-          debugPrint('Tapped on category: $category');
-          _selectCategory(category);
-        },
+      child: Column(
+        children: [
+          ListTile(
+            title: TextWidget(
+              text: title,
+              fontSize: 18,
+              color: textPrimary,
+              fontFamily: 'Bold',
+            ),
+            subtitle: TextWidget(
+              text: subtitle,
+              fontSize: 14,
+              color: textLight,
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  statusIcon,
+                  color: statusColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 4),
+                TextWidget(
+                  text: statusText,
+                  fontSize: 12,
+                  color: statusColor,
+                  fontFamily: 'Medium',
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.arrow_forward_ios, color: primary),
+              ],
+            ),
+            onTap: () {
+              debugPrint('Tapped on category: $category');
+              _selectCategory(category);
+            },
+          ),
+          if (status == 'in_progress')
+            Padding(
+              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                minHeight: 6,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1125,6 +1346,9 @@ class _SurveyScreenState extends State<SurveyScreen> {
                     _showSummary = false;
                     _currentQuestionIndex = _currentQuestions.length - 1;
                   });
+
+                  // Refresh the completion status for all categories
+                  _loadAllCategoriesCompletionStatus();
                 },
                 child: TextWidget(
                   text: 'Edit Answers',
@@ -1247,6 +1471,9 @@ class _SurveyScreenState extends State<SurveyScreen> {
                       _showSummary = false;
                       _currentQuestionIndex = _currentQuestions.length - 1;
                     });
+
+                    // Refresh the completion status for all categories
+                    _loadAllCategoriesCompletionStatus();
                   },
                   color: Colors.grey,
                   textColor: primary,
@@ -1294,6 +1521,14 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
     if (question['type'] == 'boolean') {
       return answer == true ? 'Yes' : 'No';
+    }
+
+    if (question['type'] == 'bmi_calculation' && answer is Map) {
+      final bmi = answer['bmi']?.toDouble();
+      final category = answer['category'];
+      if (bmi != null && category != null) {
+        return 'BMI: ${bmi.toStringAsFixed(1)} ($category)';
+      }
     }
 
     return answer.toString();
