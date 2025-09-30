@@ -137,11 +137,15 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
         if (bmi < 18.5) {
           bmiCategory = 'Underweight';
         } else if (bmi < 25) {
-          bmiCategory = '18.5–24.9';
+          bmiCategory = 'Healthy Weight';
         } else if (bmi < 30) {
-          bmiCategory = '25–29.9';
+          bmiCategory = 'Overweight';
+        } else if (bmi < 35) {
+          bmiCategory = 'Obesity (Class 1)';
+        } else if (bmi < 40) {
+          bmiCategory = 'Obesity (Class 2)';
         } else {
-          bmiCategory = '30+';
+          bmiCategory = 'Obesity (Class 3)';
         }
 
         widget.onAnswerChanged({
@@ -159,11 +163,15 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
     if (bmi < 18.5) {
       return 'Underweight';
     } else if (bmi < 25) {
-      return 'Normal (18.5–24.9)';
+      return 'Healthy Weight';
     } else if (bmi < 30) {
-      return 'Overweight (25–29.9)';
+      return 'Overweight';
+    } else if (bmi < 35) {
+      return 'Obesity (Class 1)';
+    } else if (bmi < 40) {
+      return 'Obesity (Class 2)';
     } else {
-      return 'Obese (30+)';
+      return 'Obesity (Class 3)';
     }
   }
 
@@ -172,11 +180,15 @@ class _SurveyQuestionCardState extends State<SurveyQuestionCard> {
     if (bmi < 18.5) {
       return Colors.blue; // Underweight
     } else if (bmi < 25) {
-      return Colors.green; // Normal
+      return Colors.green; // Healthy Weight
     } else if (bmi < 30) {
       return Colors.orange; // Overweight
+    } else if (bmi < 35) {
+      return Colors.red.shade300; // Obesity (Class 1)
+    } else if (bmi < 40) {
+      return Colors.red.shade600; // Obesity (Class 2)
     } else {
-      return Colors.red; // Obese
+      return Colors.red.shade900; // Obesity (Class 3)
     }
   }
 

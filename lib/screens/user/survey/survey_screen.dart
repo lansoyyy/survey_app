@@ -292,7 +292,14 @@ class _SurveyScreenState extends State<SurveyScreen> {
         'type': 'bmi_calculation',
         'required': true,
         'category': 'Dietary and Nutritional Factors',
-        'scores': {'25–29.9': 2, '30+': 3, '18.5–24.9': 0},
+        'scores': {
+          'Underweight': 0,
+          'Healthy Weight': 0,
+          'Overweight': 2,
+          'Obesity (Class 1)': 3,
+          'Obesity (Class 2)': 3,
+          'Obesity (Class 3)': 3,
+        },
       },
       {
         'id': 'high_protein_fat',
