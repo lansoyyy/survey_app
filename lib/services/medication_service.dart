@@ -1,6 +1,8 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import '../models/medication.dart';
+import 'notification_service.dart';
 
 class MedicationService {
   static const String _medicationsKey = 'medications';
@@ -108,6 +110,9 @@ class MedicationService {
 
       await prefs.setStringList(
           _notificationsKey, notifications.map((n) => jsonEncode(n)).toList());
+
+      // Schedule the actual notification
+      await _scheduleNotification(notification);
     } catch (e) {
       print('Error saving notification: $e');
       // Handle error appropriately
@@ -149,6 +154,152 @@ class MedicationService {
     } catch (e) {
       print('Error clearing all notifications: $e');
       // Handle error appropriately
+    }
+  }
+
+  // Schedule a notification based on the notification data
+  Future<void> _scheduleNotification(Map<String, dynamic> notification) async {
+    try {
+      final notificationService = NotificationService();
+      final String type = notification['type'] ?? '';
+      final String title = notification['title'] ?? '';
+      final String message = notification['message'] ?? '';
+      final String id = notification['id'] ?? '';
+
+      // Generate a unique notification ID
+      final int notificationId = id.hashCode.abs() % 100000;
+
+      switch (type) {
+        case 'medication':
+          // Schedule medication reminder
+          if (notification.containsKey('time')) {
+            final String timeString = notification['time'];
+            final List<String> timeParts = timeString.split(RegExp(r'[:\s]'));
+            if (timeParts.length >= 2) {
+              final int hour = int.parse(timeParts[0]);
+              final int minute = timeParts.length > 2 &&
+                      timeParts[1].length == 2
+                  ? int.parse(timeParts[1])
+                  : (timeParts[1].contains('AM')
+                      ? int.parse(timeParts[1].replaceAll('AM', '').trim())
+                      : int.parse(timeParts[1].replaceAll('PM', '').trim()) +
+                          12);
+
+              final TimeOfDay timeOfDay =
+                  TimeOfDay(hour: hour % 24, minute: minute);
+              await notificationService.scheduleRecurringNotification(
+                id: notificationId,
+                title: title,
+                body: message,
+                timeOfDay: timeOfDay,
+                repeatInterval: RepeatInterval.daily,
+              );
+            }
+          }
+          break;
+
+        case 'bp_reading':
+          // Schedule BP reading reminder
+          if (notification.containsKey('time')) {
+            final String timeString = notification['time'];
+            final List<String> timeParts = timeString.split(RegExp(r'[:\s]'));
+            if (timeParts.length >= 2) {
+              final int hour = int.parse(timeParts[0]);
+              final int minute = timeParts.length > 2 &&
+                      timeParts[1].length == 2
+                  ? int.parse(timeParts[1])
+                  : (timeParts[1].contains('AM')
+                      ? int.parse(timeParts[1].replaceAll('AM', '').trim())
+                      : int.parse(timeParts[1].replaceAll('PM', '').trim()) +
+                          12);
+
+              final TimeOfDay timeOfDay =
+                  TimeOfDay(hour: hour % 24, minute: minute);
+              await notificationService.scheduleRecurringNotification(
+                id: notificationId,
+                title: title,
+                body: message,
+                timeOfDay: timeOfDay,
+                repeatInterval: RepeatInterval.daily,
+              );
+            }
+          }
+          break;
+
+        case 'consultation':
+          // Schedule consultation reminder
+          if (notification.containsKey('timestamp')) {
+            final DateTime scheduledTime =
+                DateTime.fromMillisecondsSinceEpoch(notification['timestamp']);
+            await notificationService.scheduleNotification(
+              id: notificationId,
+              title: title,
+              body: message,
+              scheduledTime: scheduledTime,
+            );
+          }
+          break;
+
+        case 'frequency_setting':
+          // Schedule recurring notification based on frequency
+          if (notification.containsKey('frequency') &&
+              notification.containsKey('time')) {
+            final String frequency = notification['frequency'];
+            final String timeString = notification['time'];
+            final List<String> timeParts = timeString.split(RegExp(r'[:\s]'));
+
+            if (timeParts.length >= 2) {
+              final int hour = int.parse(timeParts[0]);
+              final int minute = timeParts.length > 2 &&
+                      timeParts[1].length == 2
+                  ? int.parse(timeParts[1])
+                  : (timeParts[1].contains('AM')
+                      ? int.parse(timeParts[1].replaceAll('AM', '').trim())
+                      : int.parse(timeParts[1].replaceAll('PM', '').trim()) +
+                          12);
+
+              final TimeOfDay timeOfDay =
+                  TimeOfDay(hour: hour % 24, minute: minute);
+
+              RepeatInterval repeatInterval;
+              switch (frequency.toLowerCase()) {
+                case 'daily':
+                  repeatInterval = RepeatInterval.daily;
+                  break;
+                case 'weekly':
+                  repeatInterval = RepeatInterval.weekly;
+                  break;
+                case 'monthly':
+                  repeatInterval = RepeatInterval.monthly;
+                  break;
+                default:
+                  repeatInterval = RepeatInterval.daily;
+              }
+
+              await notificationService.scheduleRecurringNotification(
+                id: notificationId,
+                title: title,
+                body: message,
+                timeOfDay: timeOfDay,
+                repeatInterval: repeatInterval,
+              );
+            }
+          }
+          break;
+      }
+    } catch (e) {
+      print('Error scheduling notification: $e');
+    }
+  }
+
+  // Cancel a scheduled notification
+  Future<void> cancelScheduledNotification(String id) async {
+    try {
+      final notificationService = NotificationService();
+      final int notificationId = id.hashCode.abs() % 100000;
+      await notificationService.cancelNotification(notificationId);
+    } catch (e) {
+      print('Error canceling scheduled notification: $e');
     }
   }
 }

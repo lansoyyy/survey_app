@@ -7,6 +7,8 @@ import 'package:survey_app/screens/user/user_login_screen.dart';
 import 'package:survey_app/screens/user/user_signup_screen.dart';
 import 'package:survey_app/screens/admin/admin_home_screen.dart';
 import 'package:survey_app/screens/admin/admin_login_screen.dart';
+import 'package:survey_app/services/notification_service.dart';
+import 'package:survey_app/services/background_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +16,12 @@ void main() async {
     name: 'bantaybp-bc1ae',
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize notification service
+  await NotificationService().initialize();
+
+  // Initialize background service
+  await initializeBackgroundService();
 
   runApp(const MyApp());
 }

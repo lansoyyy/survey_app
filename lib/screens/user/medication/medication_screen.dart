@@ -145,6 +145,9 @@ class _MedicationScreenState extends State<MedicationScreen> {
   }
 
   void _clearNotification(String id) async {
+    // Cancel the scheduled notification
+    await _medicationService.cancelScheduledNotification(id);
+    // Clear from local storage
     await _medicationService.clearNotification(id);
     _loadNotifications();
   }
@@ -306,6 +309,7 @@ class _MedicationScreenState extends State<MedicationScreen> {
                       notifications: _notifications,
                       onClear: _clearNotification,
                       onSetFrequency: _setNotificationFrequency,
+                      medicationService: _medicationService,
                     ),
                   ],
                 ),

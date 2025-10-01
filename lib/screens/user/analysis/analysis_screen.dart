@@ -31,6 +31,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   List<Map<String, dynamic>> _recommendations = [];
   List<Map<String, dynamic>> _trendData = [];
   bool _isLoading = true;
+  int? _selectedRecommendationIndex;
 
   @override
   void initState() {
@@ -83,18 +84,65 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       List<SurveyResponse> responses) {
     List<Map<String, dynamic>> trendData = [];
 
-    // Take the last 6 responses for the trend chart
-    final recentResponses =
-        responses.length > 6 ? responses.sublist(0, 6) : responses;
+    // Group responses by category and get the most recent for each category
+    Map<String, List<SurveyResponse>> responsesByCategory = {};
 
-    for (int i = 0; i < recentResponses.length; i++) {
-      final response = recentResponses[i];
-      final month = _getMonthAbbreviation(response.submittedAt.month);
+    for (final response in responses) {
+      if ([
+        'biological_genetic',
+        'socioeconomic_demographic',
+        'lifestyle_behavioral',
+        'dietary_nutritional',
+        'healthcare_management'
+      ].contains(response.surveyId)) {
+        if (!responsesByCategory.containsKey(response.surveyId)) {
+          responsesByCategory[response.surveyId] = [];
+        }
+        responsesByCategory[response.surveyId]!.add(response);
+      }
+    }
 
-      trendData.add({
-        'month': month,
-        'score': response.riskScore.toInt(),
-      });
+    // For each category, take the last 6 responses for the trend chart
+    for (final category in responsesByCategory.keys) {
+      final categoryResponses = responsesByCategory[category]!;
+      final recentResponses = categoryResponses.length > 6
+          ? categoryResponses.sublist(0, 6)
+          : categoryResponses;
+
+      for (int i = 0; i < recentResponses.length; i++) {
+        final response = recentResponses[i];
+        final month = _getMonthAbbreviation(response.submittedAt.month);
+        final categoryName = _getCategoryDisplayName(category);
+
+        // Check if we already have an entry for this month
+        final existingIndex =
+            trendData.indexWhere((item) => item['month'] == month);
+
+        if (existingIndex != -1) {
+          // Add to existing month entry
+          trendData[existingIndex][category] = response.riskScore.toInt();
+        } else {
+          // Create new month entry
+          final newEntry = {
+            'month': month,
+            'Biological and Genetic Factors': 0,
+            'Socioeconomic & Demographic Factors': 0,
+            'Lifestyle and Behavioral Factors': 0,
+            'Dietary and Nutritional Factors': 0,
+            'Healthcare Access and Management Behaviors': 0,
+          };
+          newEntry[category] = response.riskScore.toInt();
+          trendData.add(newEntry);
+        }
+      }
+    }
+
+    // Sort by month (chronological order - newest first)
+    trendData.sort((a, b) => b['month'].compareTo(a['month']));
+
+    // Take only the last 6 months
+    if (trendData.length > 6) {
+      trendData = trendData.sublist(0, 6);
     }
 
     return trendData;
@@ -120,298 +168,44 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
   List<Map<String, dynamic>> _generateRecommendations(
       List<SurveyResponse> responses) {
-    if (responses.isEmpty) {
-      return [
-        {
-          'title': 'Complete a Survey',
-          'description':
-              'Take the hypertension risk assessment survey to get personalized recommendations. This will help us understand your specific risk factors and provide targeted advice for improving your health. Completing the survey is the first step toward better health management.',
-          'priority': 'high',
-        },
-      ];
-    }
-
-    final latestResponse = responses.first;
-    final riskScore = latestResponse.riskScore;
-    final answers = latestResponse.answers;
-
     List<Map<String, dynamic>> recommendations = [];
 
-    // Updated risk level interpretation based on new scoring system
-    if (latestResponse.surveyId == 'hypertension') {
-      if (riskScore >= 13) {
-        recommendations.addAll([]);
-      } else if (riskScore >= 7) {
-        recommendations.addAll([
-          {
-            'title': 'Medical Consultation',
-            'description':
-                'Your risk score indicates a moderate risk for hypertension. Schedule an appointment with your doctor. Professional medical guidance will help you develop a comprehensive plan to address your risk factors and improve your health. Early consultation can prevent further complications.',
-            'priority': 'high',
-          },
-        ]);
+    // Only use age-specific recommendations
+    if (responses.isNotEmpty) {
+      // Find a response with age data
+      SurveyResponse? responseWithAge;
+      for (final response in responses) {
+        if (response.answers.containsKey('age')) {
+          responseWithAge = response;
+          break;
+        }
+      }
+
+      if (responseWithAge != null) {
+        final age = responseWithAge.answers['age'];
+        if (age != null) {
+          final ageGroup = _getAgeGroupFromAnswer(age);
+
+          // Determine if user has hypertension based on risk score
+          // Use the hypertension survey score if available, otherwise use the overall risk
+          double riskScore;
+          if (responseWithAge.surveyId == 'hypertension') {
+            riskScore = responseWithAge.riskScore;
+          } else {
+            riskScore = _getLatestRiskScore();
+          }
+
+          final hasHypertension = riskScore >= 13;
+          recommendations.addAll(
+              _getAgeSpecificRecommendations(ageGroup, hasHypertension));
+        }
       } else {
-        recommendations.addAll([
-          {
-            'title': 'Maintain Healthy Habits',
-            'description':
-                'Your risk score indicates a low risk for hypertension. Continue maintaining your healthy habits. Regular monitoring and consistent healthy practices will help you maintain your low risk status. Prevention is always better than treatment.',
-            'priority': 'medium',
-          },
-        ]);
+        // If no response with age data, use a default age group
+        recommendations.addAll(_getAgeSpecificRecommendations('30-39', false));
       }
-    } else if (riskScore >= 75) {
-      recommendations.addAll([
-        {
-          'title': 'Immediate Medical Attention',
-          'description':
-              'Your risk score is very high. Consult with a healthcare professional immediately. Early intervention can significantly improve your health outcomes and prevent complications. Do not delay in seeking professional medical advice.',
-          'priority': 'high',
-        },
-        {
-          'title': 'Medication Compliance',
-          'description':
-              'If prescribed medication, ensure you take it as directed. Do not stop or change your dosage without consulting your doctor. Consistent medication use is crucial for managing your condition effectively. Proper adherence can significantly improve your health outcomes.',
-          'priority': 'high',
-        },
-      ]);
-    } else if (riskScore >= 50) {
-      recommendations.addAll([
-        {
-          'title': 'Medical Consultation',
-          'description':
-              'Your risk score is high. Schedule an appointment with your doctor. Professional medical guidance will help you develop a comprehensive plan to address your risk factors and improve your health. Early consultation can prevent further complications.',
-          'priority': 'high',
-        },
-      ]);
     } else {
-      recommendations.addAll([
-        {
-          'title': 'Maintain Healthy Habits',
-          'description':
-              'Your risk score is low. Continue maintaining your healthy habits. Regular monitoring and consistent healthy practices will help you maintain your low risk status. Prevention is always better than treatment.',
-          'priority': 'medium',
-        },
-      ]);
-    }
-
-    // Add personalized recommendations based on survey answers
-    if (latestResponse.surveyId == 'hypertension') {
-      // Smoking recommendation
-
-      // Stress management recommendation
-      if (answers['stress'] == 'Often or daily') {
-        recommendations.add({
-          'title': 'Stress Reduction Techniques',
-          'description':
-              'Your high stress level contributes to hypertension risk. Try mindfulness, yoga, or counseling. Managing stress through relaxation techniques can have a positive impact on your blood pressure and overall well-being.',
-          'priority': 'medium',
-        });
-      }
-
-      // Age-specific recommendations for hypertension
-      final age = answers['age'];
-      if (age != null) {
-        final ageGroup = _getAgeGroupFromAnswer(age);
-        recommendations
-            .addAll(_getAgeSpecificRecommendations(ageGroup, riskScore >= 13));
-      }
-
-      // Note: Removed additional generic hypertension recommendations as they are now covered in age-specific recommendations
-    } else if (latestResponse.surveyId == 'diabetes') {
-      // High blood pressure recommendation for diabetes patients
-      if (answers['diabetes_high_bp'] == true) {
-        recommendations.add({
-          'title': 'Blood Pressure Management',
-          'description':
-              'Managing both diabetes and hypertension is crucial. Monitor both regularly. Controlling both conditions together can significantly reduce your risk of heart disease, stroke, and kidney problems.',
-          'priority': 'high',
-        });
-      }
-
-      // Diet recommendation for diabetes patients
-      final diet = answers['diabetes_diet'];
-      if (diet == 'Poor' || diet == 'Fair') {
-        recommendations.add({
-          'title': 'Improve Dietary Habits',
-          'description':
-              'A healthy diet is essential for diabetes management. Focus on whole grains, lean proteins, and vegetables. Work with a dietitian to create a meal plan that helps control your blood sugar and supports overall health.',
-          'priority': 'high',
-        });
-      }
-
-      // Physical activity recommendation for diabetes patients
-      final activity = answers['diabetes_physical_activity'];
-      if (activity == 'Never' || activity == 'Rarely') {
-        recommendations.add({
-          'title': 'Increase Physical Activity',
-          'description':
-              'Regular exercise helps manage blood sugar levels. Aim for at least 150 minutes of moderate activity per week. Physical activity increases insulin sensitivity and helps your muscles use glucose for energy.',
-          'priority': 'high',
-        });
-      }
-
-      // Smoking recommendation for diabetes patients
-      if (answers['diabetes_smoking'] == true) {
-        recommendations.add({
-          'title': 'Quit Smoking',
-          'description':
-              'Smoking increases complications in diabetes patients. Seek support to quit smoking. Quitting can improve circulation, reduce inflammation, and lower your risk of diabetes-related complications.',
-          'priority': 'high',
-        });
-      }
-
-      // Additional diabetes recommendations
-      recommendations.addAll([
-        {
-          'title': 'Monitor Blood Sugar Levels',
-          'description':
-              'Check your blood glucose regularly as recommended by your healthcare provider. Keep a log of your readings. Monitoring helps you understand how food, activity, and medication affect your blood sugar levels.',
-          'priority': 'high',
-        },
-        {
-          'title': 'Foot Care',
-          'description':
-              'Inspect your feet daily for cuts, sores, or swelling. Proper foot care can prevent serious complications. Diabetes can reduce blood flow to your feet and cause nerve damage, making foot problems more likely.',
-          'priority': 'medium',
-        },
-        {
-          'title': 'Stay Hydrated',
-          'description':
-              'Drink plenty of water to help your kidneys flush out excess glucose through urine. Proper hydration supports all bodily functions and helps maintain stable blood sugar levels throughout the day.',
-          'priority': 'low',
-        },
-        {
-          'title': 'Regular Eye Exams',
-          'description':
-              'Diabetes can affect your eyes. Schedule annual eye exams to detect and treat problems early. Diabetic retinopathy can lead to vision loss if not caught and treated early.',
-          'priority': 'medium',
-        },
-      ]);
-    } else if (latestResponse.surveyId == 'heart_disease') {
-      // Chest pain recommendation
-      if (answers['heart_chest_pain'] == true) {
-        recommendations.add({
-          'title': 'Chest Pain Monitoring',
-          'description':
-              'Report any chest pain immediately to your healthcare provider. Chest pain can be a sign of a heart problem that needs immediate attention. Do not ignore or delay seeking medical care for chest discomfort.',
-          'priority': 'high',
-        });
-      }
-
-      // Diabetes recommendation for heart disease patients
-      if (answers['heart_diabetes'] == true) {
-        recommendations.add({
-          'title': 'Diabetes Management',
-          'description':
-              'Managing diabetes is crucial for heart health. Monitor blood sugar levels regularly. Keeping blood sugar under control can reduce the risk of further heart complications and improve overall cardiovascular health.',
-          'priority': 'high',
-        });
-      }
-
-      // Smoking recommendation for heart disease patients
-      if (answers['heart_smoking'] == true) {
-        recommendations.add({
-          'title': 'Quit Smoking',
-          'description':
-              'Smoking is a major risk factor for heart disease. Seek immediate help to quit smoking. Quitting smoking is one of the most important steps you can take to improve your heart health and prevent future cardiac events.',
-          'priority': 'high',
-        });
-      }
-
-      // High blood pressure recommendation for heart disease patients
-      if (answers['heart_high_bp'] == true) {
-        recommendations.add({
-          'title': 'Blood Pressure Control',
-          'description':
-              'Controlling blood pressure is essential for heart health. Monitor regularly and follow medical advice. Proper blood pressure management can reduce the workload on your heart and prevent further damage.',
-          'priority': 'high',
-        });
-      }
-
-      // Additional heart disease recommendations
-      recommendations.addAll([
-        {
-          'title': 'Healthy Fats',
-          'description':
-              'Include omega-3 fatty acids from fish like salmon and mackerel. Avoid trans fats and limit saturated fats. Healthy fats can help reduce inflammation and lower your risk of heart disease while providing essential nutrients.',
-          'priority': 'high',
-        },
-        {
-          'title': 'Manage Cholesterol',
-          'description':
-              'Keep your cholesterol levels in check through diet, exercise, and medication if prescribed. High cholesterol can lead to plaque buildup in your arteries, increasing the risk of heart attack and stroke.',
-          'priority': 'high',
-        },
-        {
-          'title': 'Know Your Numbers',
-          'description':
-              'Regularly monitor blood pressure, cholesterol, and blood sugar. Understanding these numbers helps manage heart health. Keep track of your health metrics and discuss them with your healthcare provider regularly.',
-          'priority': 'medium',
-        },
-        {
-          'title': 'Get Quality Sleep',
-          'description':
-              'Aim for 7-9 hours of sleep per night. Poor sleep is linked to higher risk of heart disease. Good sleep helps regulate stress hormones and blood pressure, supporting cardiovascular health.',
-          'priority': 'medium',
-        },
-      ]);
-    }
-
-    // Note: Removed general recommendations as they are now covered in age-specific recommendations for hypertension surveys
-    // Only add general recommendations for non-hypertension surveys
-    if (latestResponse.surveyId != 'hypertension') {
-      recommendations.addAll([
-        {
-          'title': 'Dietary Changes',
-          'description':
-              'Reduce sodium intake to less than 2,300mg per day. Focus on fresh fruits, vegetables, whole grains, and lean proteins. A heart-healthy diet can help manage weight, blood pressure, and cholesterol levels.',
-          'priority': 'high',
-        },
-        {
-          'title': 'Regular Exercise',
-          'description':
-              'Engage in 30 minutes of moderate exercise 5 days a week. Activities like brisk walking, swimming, or cycling can strengthen your heart and improve circulation. Start slowly and gradually increase intensity as your fitness improves.',
-          'priority': 'high',
-        },
-        {
-          'title': 'Stress Management',
-          'description':
-              'Practice relaxation techniques like meditation or deep breathing. Chronic stress can contribute to high blood pressure and other heart problems. Find healthy ways to manage stress such as hobbies, socializing, or relaxation exercises.',
-          'priority': 'medium',
-        },
-        {
-          'title': 'Regular Monitoring',
-          'description':
-              'Check your blood pressure at least once a week. Regular monitoring helps track progress and identify any concerning changes early. Keep a log of your readings to share with your healthcare provider.',
-          'priority': 'high',
-        },
-        {
-          'title': 'Adequate Sleep',
-          'description':
-              'Aim for 7-9 hours of quality sleep each night. Sleep is essential for heart health and overall well-being. Poor sleep can negatively affect blood pressure, weight, and stress hormone levels.',
-          'priority': 'medium',
-        },
-        // Additional general recommendations
-        {
-          'title': 'Limit Alcohol Consumption',
-          'description':
-              'Excessive alcohol can raise blood pressure. Limit to moderate amounts (up to one drink per day for women, two for men). If you choose to drink, do so in moderation and be aware of how alcohol affects your health.',
-          'priority': 'medium',
-        },
-        {
-          'title': 'Maintain a Healthy Weight',
-          'description':
-              'Achieving and maintaining a healthy weight can significantly reduce hypertension risk. Even a small weight loss can have positive effects on blood pressure and overall health. Focus on gradual, sustainable changes to your diet and activity level.',
-          'priority': 'high',
-        },
-        {
-          'title': 'Stay Hydrated',
-          'description':
-              'Drink plenty of water throughout the day to support cardiovascular health. Proper hydration helps maintain blood volume and supports heart function. Limit sugary drinks and excessive caffeine which can negatively impact heart health.',
-          'priority': 'low',
-        },
-      ]);
+      // If no responses, use a default age group
+      recommendations.addAll(_getAgeSpecificRecommendations('30-39', false));
     }
 
     return recommendations;
@@ -470,18 +264,18 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             {
               'title': 'Diet',
               'bullets': [
-                'Eat more vegetables such as kangkong, malunggay, ampalaya and fruits such as banana, papaya, oranges, and mangga.',
-                'These food list helps lower BP and LDL "bad cholesterol": Fish, Chicken, Lean meat (meat with no fat), Beans (Baguio beans, monggo, peas), Nuts & Seeds',
-                'Limit sodium intake to 1,300 mg (¼ tablespoon) per day. Limit saturated and trans fat such as fatty meats, full-fat dairy and processed foods.'
+                'Eat fish, chicken, lean meat, beans, nuts, and seeds to lower BP and bad cholesterol.',
+                'Limit sodium to 1,300 mg daily.',
+                'Avoid sugary drinks and desserts; drink 6–8 glasses of water daily.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Exercise',
               'bullets': [
-                'Do brisk walking or jogging at least 30 minutes, 5 days/week.',
-                'Do moderate-intensity sports like badminton, tennis, or basketball for at least 30 minutes, 3–5 days/week',
-                'Always include a 5-10 minute warm-up before exercise and a cool-down afterwards.'
+                'Brisk walk or jog 30 minutes, 5 days a week.',
+                'Warm up and cool down for 5–10 minutes.',
+                'Monitor BP before and after exercise.'
               ],
               'priority': 'high',
             },
@@ -489,17 +283,25 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               'title': 'Lifestyle Changes',
               'bullets': [
                 'Sleep 7–9 hours nightly with a regular schedule.',
-                'Practice stress relief like deep breathing or listening to music.',
-                'Maintain healthy weight (BMI <25). Avoid smoking and minimize alcohol intake.'
+                'Maintain healthy weight (BMI <25).',
+                'Avoid smoking and limit alcohol intake.'
               ],
               'priority': 'medium',
             },
             {
               'title': 'Medication Adherence',
               'bullets': [
-                'Take medicines at the same time daily as prescribed by your physician.',
-                'Use a pillbox or phone reminders such as alarms to help you in taking your medicine at the right time.',
-                'Never stop or skip medicines without doctor\'s advice.'
+                'Take medicines at the same time daily.',
+                'Use pillbox/phone reminders.',
+                'Don\'t stop/skip meds without doctor\'s advice.'
+              ],
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Reminder',
+              'bullets': [
+                'Consult your doctor before starting new exercises to ensure they\'re safe and appropriate.',
+                'Avoid overexertion and listen to your body.'
               ],
               'priority': 'high',
             },
@@ -510,36 +312,44 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             {
               'title': 'Diet',
               'bullets': [
-                'Eat more vegetables such as kangkong, malunggay, ampalaya and fruits such as banana, papaya, oranges, and mangga.',
-                'These food list helps lower BP and LDL "bad cholesterol": Fish, Chicken, Lean meat (meat with no fat), Beans (Baguio beans, monggo, peas), Nuts & Seeds',
-                'Limit sodium intake to 1,300 mg (¼ tablespoon) per day. Limit saturated and trans fat such as fatty meats, full-fat dairy and processed foods.'
+                'Eat more gulay (kangkong, malunggay, ampalaya) and fruits (banana, papaya, oranges, mangga).',
+                'Limit sodium to 1,300 mg/day.',
+                'Reduce sugary drinks/desserts; drink 6–8 glasses water daily.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Exercise',
               'bullets': [
-                'Brisk walking or biking 30 minutes/day, 5 days/week.',
-                'Do home workouts like planking or resistance bands 2 days/week.',
-                'Always include a 5-10 minute warm-up before exercise and a cool-down afterwards.'
+                'Brisk walking/jog 30 minutes/day, 5 days/week.',
+                'Warm-up 5-10 mins before exercise and a cool-down after.',
+                'Monitor BP before and after exercise.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Lifestyle Changes',
               'bullets': [
-                'Manage work stress through short breaks and meditation.',
+                'Manage stress with short breaks and meditation.',
                 'Sleep 7–9 hours nightly with a regular schedule.',
-                'Maintain healthy weight (BMI <25). Avoid smoking and minimize alcohol intake.'
+                'Avoid smoking and limt alcohol intake.'
               ],
               'priority': 'medium',
             },
             {
               'title': 'Medication Adherence',
               'bullets': [
-                'Take medicines at the same time daily as prescribed by your physician.',
-                'Use a pillbox or phone reminders such as alarms to help you in taking your medicine at the right time.',
-                'Never stop or skip medicines without doctor\'s advice. Track BP at home 2–3 times per week.'
+                'Take medicines at the same time daily.',
+                'Use pillbox/phone reminders.',
+                'Track BP at home 2–3 times per week.'
+              ],
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Reminder',
+              'bullets': [
+                'Consult your doctor before starting new exercises to ensure they\'re safe and appropriate.',
+                'Avoid overexertion and listen to your body.'
               ],
               'priority': 'high',
             },
@@ -550,36 +360,44 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             {
               'title': 'Diet',
               'bullets': [
-                'Follow DASH with Filipino meals: sinigang with lots of gulay, grilled tilapia, brown rice if affordable.',
-                'Eat at least 1 serving of fruits (banana, papaya, mango) per day.',
-                'Limit intake of processed foods (canned goods, instant noodles, chips) to prevent excess sodium intake. Reduce use of patis, bagoong, and toyo.'
+                'Follow DASH diet with Filipino meals (sinigang w/ gulay, grilled tilapia, brown rice).',
+                'Limit processed foods (canned, instant noodles, chips).',
+                'Drink 6–8 glasses water daily (unless restricted).'
               ],
               'priority': 'high',
             },
             {
               'title': 'Exercise',
               'bullets': [
-                'Do walking or cycling for at least 150 minutes per week (e.g., 30 minutes a day, 5 days a week).',
-                'Choose active options like climbing stairs instead of elevators.',
-                'Do strength training 2 days per week, with 1–3 sets of 10–15 reps for major muscle groups.'
+                'Walk/cycle 150 mins/week (30 mins, 5 days).',
+                'Strength training 2x/week, 1–3 sets of 10–15 reps.',
+                'Always warm up/cool down.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Lifestyle Changes',
               'bullets': [
-                'Schedule annual check-up for cholesterol and blood sugar.',
                 'Practice relaxation exercises like yoga or stretching.',
-                'Maintain a regular sleeping pattern and have at least 7-9 hrs of sleep daily. Avoid smoking and minimize alcohol intake.'
+                'Maintain a regular sleeping pattern & at least 7-9 hrs of sleep daily.',
+                'Avoid smoking and limit alcohol intake.'
               ],
               'priority': 'medium',
             },
             {
               'title': 'Medication Adherence',
               'bullets': [
-                'Take prescribed medicines consistently at the same time each day, even if blood pressure feels normal.',
-                'Never stop or adjust medication without doctor\'s advice.',
-                'Use a pillbox or phone reminders to avoid missed doses. Attend follow-up visits every 3–6 months.'
+                'Take medicines consistently at same time.',
+                'Use pillbox/phone reminders.',
+                'Attend follow-up visits every 3–6 months.'
+              ],
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Reminder',
+              'bullets': [
+                'Consult your doctor before starting new exercises to ensure they\'re safe and appropriate.',
+                'Avoid overexertion and listen to your body.'
               ],
               'priority': 'high',
             },
@@ -592,34 +410,42 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               'bullets': [
                 'Choose boiled or grilled fish/chicken instead of fried.',
                 'Increase vegetable servings (upo, sitaw, pechay).',
-                'Drink at least 6–8 glasses of water daily unless restricted by your doctor.'
+                'Drink 6–8 glasses water daily (unless restricted).'
               ],
               'priority': 'high',
             },
             {
               'title': 'Exercise',
               'bullets': [
-                'Walk at a moderate pace for 30 minutes daily, at least 5 days a week.',
-                'Join community Zumba or dance classes for motivation and fun.',
-                'Do light strength training (using water bottles or resistance bands) at least 2 times per week.'
+                'Walk/jog 30 mins daily, 5 days/week.',
+                'Join Zumba/dance for fun.',
+                'Stretch daily 5–10 mins.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Lifestyle Changes',
               'bullets': [
-                'Avoid smoking and alcohol consumption as these worsen blood pressure.',
-                'Manage stress through gardening, prayer, or enjoyable hobbies.',
-                'Maintain a healthy weight and monitor BMI. Check weight monthly and monitor waistline regularly.'
+                'Avoid smoking/alcohol.',
+                'Manage stress with hobbies, prayer, gardening.',
+                'Maintain a healthy weight and monitor BMI.'
               ],
               'priority': 'medium',
             },
             {
               'title': 'Medication Adherence',
               'bullets': [
-                'Take medicines consistently even if blood pressure is controlled.',
-                'Use phone reminders, alarms, or pillboxes to avoid forgetting doses.',
-                'Always consult a doctor before using herbal remedies or supplements. Attend follow-up visits every 3–6 months.'
+                'Take medicines consistently.',
+                'Use phone reminders/pillbox.',
+                'Attend follow-up visits every 3–6 months.'
+              ],
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Reminder',
+              'bullets': [
+                'Consult your doctor before starting new exercises to ensure they\'re safe and appropriate.',
+                'Avoid overexertion and listen to your body.'
               ],
               'priority': 'high',
             },
@@ -630,36 +456,44 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             {
               'title': 'Diet',
               'bullets': [
-                'Eat soft but nutritious foods such as boiled saba, lugaw with malunggay, and fish tinola.',
-                'Maintain a low-salt diet by avoiding bagoong, instant soups, and processed canned goods.',
-                'Ensure daily protein intake (fish, eggs, tofu, or monggo) to prevent muscle loss. Include fruits such as papaya and melon.'
+                'Eat soft, nutritious foods (boiled saba, lugaw w/ malunggay, fish tinola).',
+                'Maintain low-salt diet; avoid bagoong, instant, canned goods.',
+                'Drink enough fluids unless restricted.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Exercise',
               'bullets': [
-                'Do brisk walking or slow jogging for 30 minutes, 5 days a week.',
-                'Add balance exercises such as heel-to-toe walking or standing on one foot daily (5-10 mins/day).',
-                'Include stretching to improve flexibility and reduce muscle stiffness. (5-10 mins/day)'
+                'Brisk walk/slow jog 30 mins, 5 days/week.',
+                'Avoid sitting for long periods; move every hour.',
+                'Monitor BP before and after exercise.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Lifestyle Changes',
               'bullets': [
-                'Maintain a regular sleeping pattern of 7–9 hours per night.',
-                'Avoid smoking and minimize alcohol intake.',
-                'Join community or church activities to prevent isolation and improve emotional well-being.'
+                'Ensure a safe home environment (remove clutter, handrails if needed).',
+                'Maintain a regular sleeping pattern.',
+                'Join social/church activities.'
               ],
               'priority': 'medium',
             },
             {
               'title': 'Medication Adherence',
               'bullets': [
-                'Take prescribed medicines at the same time daily, even if blood pressure is normal.',
-                'Have family members or caregivers assist with reminders if forgetful.',
-                'Check blood pressure at home twice a week for monitoring. Attend follow-up visits every 3–6 months.'
+                'Take prescribed medicines at the same time daily.',
+                'Ask family members to assist in medication reminder.',
+                'Check blood pressure at home 2x/week for monitoring.'
+              ],
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Reminder',
+              'bullets': [
+                'Consult your doctor before starting new exercises to ensure they\'re safe and appropriate.',
+                'Avoid overexertion and listen to your body.'
               ],
               'priority': 'high',
             },
@@ -670,36 +504,44 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             {
               'title': 'Diet',
               'bullets': [
-                'Eat easy-to-chew vegetables such as malunggay soup or mashed kalabasa.',
-                'Include soft fruits like banana, melon, or papaya daily.',
-                'Drink enough water throughout the day unless restricted by a doctor. Prepare low-salt meals, avoiding canned foods and dried fish.'
+                'Eat soft, easy-to-chew foods (malunggay soup, mashed kalabasa).',
+                'Drink enough water unless restricted.',
+                'Eat small, frequent meals.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Exercise',
               'bullets': [
-                'Do light walking at a comfortable pace for 20–30 minutes daily.',
-                'Add seated or chair exercises 2–3 times per week to maintain mobility and prevent stiffness.',
-                'Practice balance training (heel-to-toe walking, standing on one leg with support) 3 times per week.'
+                'Light walking 20–30 mins daily.',
+                'Balance training 3x/week (heel-to-toe, one-leg w/ support).',
+                'Stretching 2x/week after activity.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Lifestyle Changes',
               'bullets': [
-                'Prioritize sleep and daily routine to keep the body well-regulated.',
-                'Completely avoid smoking and limit alcohol.',
-                'Join light group activities (community exercises, church groups, family gatherings) to enhance mental wellness.'
+                'Maintain regular sleep routine.',
+                'Join group/family activities.',
+                'Keep home safe (lighting, clutter-free).'
               ],
               'priority': 'medium',
             },
             {
               'title': 'Medication Adherence',
               'bullets': [
-                'Follow medication schedule and appropriate amount of dose.',
-                'Ask caregiver or family to help prepare and remind about medicines.',
-                'Check blood pressure at home twice a week for monitoring. Always consult a doctor before stopping or changing doses.'
+                'Follow medication schedule regularly.',
+                'Ask family members to assist in medication reminder.',
+                'Check blood pressure at home 2x/week for monitoring.'
+              ],
+              'priority': 'high',
+            },
+            {
+              'title': 'Exercise Reminder',
+              'bullets': [
+                'Consult your doctor before starting new exercises to ensure they\'re safe and appropriate.',
+                'Avoid overexertion and listen to your body.'
               ],
               'priority': 'high',
             },
@@ -743,6 +585,14 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               ],
               'priority': 'high',
             },
+            {
+              'title': 'Exercise Reminder',
+              'bullets': [
+                'Consult your doctor before starting new exercises to ensure they\'re safe and appropriate.',
+                'Avoid overexertion and listen to your body.'
+              ],
+              'priority': 'high',
+            },
           ]);
       }
     } else {
@@ -753,27 +603,25 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             {
               'title': 'Diet',
               'bullets': [
-                'Eat more gulay (kangkong, talbos ng kamote, malunggay, ampalaya) in every meal.',
-                'Choose fruits as snacks such as banana, papaya, or guava instead of chips or processed junk food.',
-                'Avoid energy drinks, soft drinks, and fast food which can raise blood pressure over time.'
+                'Eat more gulay (kangkong, talbos ng kamote, malunggay, ampalaya) and fruits in daily.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Exercise',
               'bullets': [
-                'Engage in aerobic activities such as jogging, brisk walking, or cycling for 30 minutes at least 5 days per week.',
-                'Add strengthening exercises (push-ups, squats, planking, or resistance bands) at least 2 times per week.',
-                'Play sports such as basketball, badminton, or volleyball for fun and physical activity.'
+                'Jog, brisk walk, or cycle 30 mins, 5 days/week.',
+                'Play sports (basketball, badminton, volleyball) for fun and activity.',
+                'Stretch 5–10 mins daily.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Lifestyle Changes',
               'bullets': [
-                'Sleep 7–9 hours daily and maintain a consistent schedule.',
-                'Avoid smoking and limit alcohol consumption to occasional, minimal intake.',
-                'Manage stress from school or work through breaks, hobbies, or relaxation activities.'
+                'Sleep 7–9 hrs with consistent schedule.',
+                'Avoid smoking, limit alcohol.',
+                'Manage stress through breaks, hobbies, or relaxation.'
               ],
               'priority': 'medium',
             },
@@ -784,27 +632,27 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             {
               'title': 'Diet',
               'bullets': [
-                'Cook food with less oil and salt (examples: grilled fish, pinakbet, boiled chicken).',
-                'Reduce fast food meals to once a week or less.',
-                'Eat at least one serving of fruits daily such as banana, guava, mango, or papaya. Limit salty condiments like patis, toyo, and bagoong.'
+                'Cook with less oil/salt (grilled fish, pinakbet, boiled chicken).',
+                'Limit salty condiments (patis, toyo, bagoong).',
+                'Drink 6–8 glasses water daily (unless restricted).'
               ],
               'priority': 'high',
             },
             {
               'title': 'Exercise',
               'bullets': [
-                'Walk or bike to work if possible to increase daily activity.',
-                'Exercise at least 150 minutes per week (e.g., brisk walking or cycling 30 minutes, 5 days a week).',
-                'Add resistance training 2 times per week (bodyweight exercises, dumbbells, or water bottles).'
+                'Exercise 150 mins/week (e.g., brisk walk/cycle).',
+                'Add resistance training 2x/week (bodyweight, dumbbells).',
+                'Stretch or yoga 5–10 mins/day.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Lifestyle Changes',
               'bullets': [
-                'Monitor your blood pressure at least once a month if at risk (family history, overweight, stressful job).',
-                'Avoid smoking and limit alcohol intake.',
-                'Manage stress through meditation, hobbies, or regular relaxation techniques. Sleep at least 7–8 hours per night.'
+                'Avoid smoking, limit alcohol.',
+                'Sleep 7–8 hrs with regular bedtime routine.',
+                'Maintain healthy weight (BMI <25).'
               ],
               'priority': 'medium',
             },
@@ -815,25 +663,25 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             {
               'title': 'Diet',
               'bullets': [
-                'Eat high-fiber meals such as brown rice, mongo, and vegetables.',
-                'Limit fatty meats like lechon kawali or crispy pata.',
-                'Include potassium-rich fruits daily such as saba, melon, or papaya. Drink 6–8 glasses of water daily unless otherwise restricted.'
+                'Eat high-fiber meals (brown rice, mongo, vegetables).',
+                'Add potassium-rich fruits (saba, melon, papaya).',
+                'Drink 6–8 glasses water daily (unless restricted).'
               ],
               'priority': 'high',
             },
             {
               'title': 'Exercise',
               'bullets': [
-                'Do brisk walking or jogging 30 minutes daily.',
-                'Join community exercise programs like Zumba or aerobics.',
-                'Include strength exercises like lunges, planks, or resistance bands 2–3 times per week.'
+                'Brisk walk/jog 30 mins daily.',
+                'Join community Zumba/aerobics.',
+                'Stretch daily 5–10 mins.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Lifestyle Changes',
               'bullets': [
-                'Get annual BP check-ups and maintain healthy weight.',
+                'Maintain healthy weight.',
                 'Manage stress through hobbies, prayer, or relaxation exercises.',
                 'Avoid smoking and limit alcohol intake.'
               ],
@@ -846,27 +694,27 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             {
               'title': 'Diet',
               'bullets': [
-                'Eat high-fiber meals such as brown rice, mongo, and vegetables.',
-                'Limit fatty meats like lechon kawali or crispy pata.',
-                'Include potassium-rich fruits daily such as saba, melon, or papaya. Drink 6–8 glasses of water daily unless otherwise restricted.'
+                'Eat high-fiber meals (brown rice, mongo, vegetables).',
+                'Add potassium-rich fruits (saba, melon, papaya).',
+                'Drink 6–8 glasses water daily (unless restricted).'
               ],
               'priority': 'high',
             },
             {
               'title': 'Exercise',
               'bullets': [
-                'Engage in brisk walking, swimming, biking, dancing (Zumba) for 150 minutes per week.',
-                'Add light weightlifting or resistance band exercises 2 times per week.',
-                'Stretch daily to improve flexibility (5-10 mins/day). Do active household chores for additional movement.'
+                'Do brisk walking, swimming, biking, or Zumba 150 mins/week.',
+                'Add light resistance training 2x/week.',
+                'Stretch daily 5–10 mins.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Lifestyle Changes',
               'bullets': [
-                'Get annual medical check-ups to monitor blood pressure and cholesterol.',
-                'Monitor weight and waistline monthly.',
-                'Reduce alcohol and completely avoid smoking. Engage in hobbies or relaxation activities to lower stress.'
+                'Monitor weight/waist monthly.',
+                'Avoid smoking, limit alcohol.',
+                'Do hobbies or relaxation to lower stress.'
               ],
               'priority': 'medium',
             },
@@ -877,27 +725,27 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             {
               'title': 'Diet',
               'bullets': [
-                'Eat soft, low-salt meals such as lugaw with vegetables and tinola.',
-                'Consume daily servings of fruits (banana, papaya).',
-                'Ensure protein intake with fish, eggs, or tofu. Drink adequate fluids, unless restricted. Limit salty condiments (patis, bagoong, toyo).'
+                'Eat soft, low-salt meals (lugaw with gulay, tinola).',
+                'Ensure protein from fish, eggs, or tofu.',
+                'Drink enough fluids unless restricted.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Exercise',
               'bullets': [
-                'Do brisk walking or light jogging for 30 minutes daily.',
-                'Add balance training (heel-to-toe walking, standing on one foot with support, side leg raises) for 10-15 mins/session, 3 times per week.',
-                'Try stretching or yoga for flexibility. (5-10 mins/day). Avoid long periods of sitting; stand and move often.'
+                'Brisk walk or light jog 30 mins daily.',
+                'Stretch or yoga 5–10 mins/day.',
+                'Avoid long sitting; move often.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Lifestyle Changes',
               'bullets': [
-                'Get blood pressure checked at least once a month.',
                 'Maintain an active lifestyle with social activities.',
-                'Ensure a safe home environment to prevent falls. Avoid smoking and limit alcohol intake.'
+                'Ensure a safe home environment to prevent falls.',
+                'Avoid smoking and limit alcohol intake.'
               ],
               'priority': 'medium',
             },
@@ -908,27 +756,27 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             {
               'title': 'Diet',
               'bullets': [
-                'Prepare easy-to-chew, low-salt meals like malunggay soup or mashed kalabasa.',
-                'Ensure daily hydration unless restricted by a doctor.',
-                'Consume fruits daily such as banana, melon, or papaya. Avoid instant soups, dried fish, and canned foods. Serve small, frequent meals.'
+                'Prepare easy-to-chew, low-salt meals (malunggay soup, mashed kalabasa).',
+                'Drink enough water unless restricted.',
+                'Eat small, frequent meals.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Exercise',
               'bullets': [
-                'Do light walking 20–30 minutes daily at a comfortable pace.',
-                'Practice chair or seated exercises for mobility 5-10 mins, 3 times per week.',
-                'Include balance training for 5-10 mins at least 3 times per week. Perform gentle stretching for 5-10 mins daily.'
+                'Light walk 20–30 mins daily.',
+                'Do chair/seated exercises 5–10 mins, 3x/week.',
+                'Move regularly to prevent stiffness.'
               ],
               'priority': 'high',
             },
             {
               'title': 'Lifestyle Changes',
               'bullets': [
-                'Maintain a consistent sleep routine (7–9 hours daily).',
-                'Keep the home safe to avoid falls (good lighting, clutter-free).',
-                'Stay socially connected with family, friends, or community. Avoid smoking and minimize alcohol intake.'
+                'Keep home safe (lighting, clutter-free).',
+                'Stay socially connected (family, friends, community).',
+                'Avoid smoking, limit alcohol.'
               ],
               'priority': 'medium',
             },
@@ -967,18 +815,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       }
     }
 
-    // Add exercise reminder for all age groups with hypertension
-    if (hasHypertension) {
-      recommendations.add({
-        'title': 'Exercise Reminder',
-        'bullets': [
-          'Consult your doctor before starting new exercises to ensure they\'re safe and appropriate.',
-          'Avoid overexertion and listen to your body.'
-        ],
-        'priority': 'high',
-      });
-    }
-
     return recommendations;
   }
 
@@ -987,40 +823,83 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     return _surveyResponses.first.riskScore;
   }
 
-  // Updated risk level interpretation based on new scoring system
-  String _getRiskLevel(double score) {
-    // For hypertension surveys, use the new scoring system
-    if (_surveyResponses.isNotEmpty &&
-        _surveyResponses.first.surveyId == 'hypertension') {
-      if (score >= 13) return 'High';
-      if (score >= 7) return 'Moderate';
-      return 'Low';
+  // Get all hypertension category scores
+  Map<String, double> _getHypertensionCategoryScores() {
+    Map<String, double> categoryScores = {
+      'Biological and Genetic Factors': 0.0,
+      'Socioeconomic & Demographic Factors': 0.0,
+      'Lifestyle and Behavioral Factors': 0.0,
+      'Dietary and Nutritional Factors': 0.0,
+      'Healthcare Access and Management Behaviors': 0.0,
+    };
+
+    // Get all survey responses for hypertension categories
+    for (final response in _surveyResponses) {
+      if ([
+        'biological_genetic',
+        'socioeconomic_demographic',
+        'lifestyle_behavioral',
+        'dietary_nutritional',
+        'healthcare_management'
+      ].contains(response.surveyId)) {
+        final categoryName = _getCategoryDisplayName(response.surveyId);
+        categoryScores[categoryName] = response.riskScore;
+      }
     }
 
-    // For other surveys, use the existing scoring system
-    if (score >= 75) return 'High';
-    if (score >= 50) return 'Moderate';
+    return categoryScores;
+  }
+
+  // Get display name for category ID
+  String _getCategoryDisplayName(String categoryId) {
+    switch (categoryId) {
+      case 'biological_genetic':
+        return 'Biological and Genetic Factors';
+      case 'socioeconomic_demographic':
+        return 'Socioeconomic & Demographic Factors';
+      case 'lifestyle_behavioral':
+        return 'Lifestyle and Behavioral Factors';
+      case 'dietary_nutritional':
+        return 'Dietary and Nutritional Factors';
+      case 'healthcare_management':
+        return 'Healthcare Access and Management Behaviors';
+      default:
+        return categoryId;
+    }
+  }
+
+  // Get risk level for a specific score
+  String _getRiskLevel(double score) {
+    // For hypertension surveys, use the correct scoring system
+    if (score >= 13) return 'High';
+    if (score >= 7) return 'Moderate';
     return 'Low';
   }
 
-  // Updated risk description based on new scoring system
+  // Get risk description for a specific score
   String _getRiskDescription(double score) {
     // For hypertension surveys, use the new scoring system
-    if (_surveyResponses.isNotEmpty &&
-        _surveyResponses.first.surveyId == 'hypertension') {
-      if (score >= 13)
-        return 'Your hypertension risk is high. Immediate action is recommended.';
-      if (score >= 7)
-        return 'Your hypertension risk is moderate. Medical consultation is advised.';
-      return 'Your hypertension risk is low. Continue maintaining healthy habits.';
-    }
+    if (score >= 13)
+      return '● You\'ve taken a crucial first step by assessing your risk. Your HIGH score signals the need for action.\n● Schedule a check-up, reduce sodium and processed foods, stay physically active, and follow your provider\'s advice to protect your heart health.';
+    if (score >= 7)
+      return '● Great effort! Your score shows a MODERATE risk for hypertension, meaning now is the perfect time to strengthen your routine.\n● Add more fruits and vegetables, stay active most days, and monitor your blood pressure regularly to lower your risk.';
+    return '● Excellent work! Your blood pressure risk is LOW, showing that your healthy eating, regular activity, and mindful stress management are paying off.\n● Keep reinforcing these habits to stay protected.';
+  }
 
-    // For other surveys, use the existing scoring system
-    if (score >= 75)
-      return 'Your risk is high. Immediate action is recommended.';
-    if (score >= 50)
-      return 'Your risk is moderate. Medical consultation is advised.';
-    return 'Your risk is low. Continue maintaining healthy habits.';
+  // Get overall risk level based on average of all categories
+  String _getOverallRiskLevel() {
+    final categoryScores = _getHypertensionCategoryScores();
+    final totalScore = categoryScores.values.reduce((a, b) => a + b);
+    final averageScore = totalScore / categoryScores.length;
+    return _getRiskLevel(averageScore);
+  }
+
+  // Get overall risk description based on average of all categories
+  String _getOverallRiskDescription() {
+    final categoryScores = _getHypertensionCategoryScores();
+    final totalScore = categoryScores.values.reduce((a, b) => a + b);
+    final averageScore = totalScore / categoryScores.length;
+    return _getRiskDescription(averageScore);
   }
 
   // Show dialog for export options
@@ -1199,43 +1078,85 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   style: const pw.TextStyle(fontSize: 14),
                 ),
                 pw.SizedBox(height: 20),
+
+                // Add category-based assessment scores
                 pw.Text(
-                  'Risk Assessment Summary',
+                  'Hypertension Risk Assessment by Category',
                   style: pw.TextStyle(
                     fontSize: 18,
                     fontWeight: pw.FontWeight.bold,
                   ),
                 ),
                 pw.SizedBox(height: 10),
-                pw.Container(
-                  padding: const pw.EdgeInsets.all(10),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.black),
-                    borderRadius: pw.BorderRadius.circular(5),
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        'Latest Risk Score: ${_getLatestRiskScore().toStringAsFixed(1)}',
-                        style: const pw.TextStyle(fontSize: 16),
-                      ),
-                      pw.SizedBox(height: 5),
-                      pw.Text(
-                        'Risk Level: ${_getRiskLevel(_getLatestRiskScore())}',
-                        style: const pw.TextStyle(fontSize: 16),
-                      ),
-                      pw.SizedBox(height: 5),
-                      pw.Text(
-                        _getRiskDescription(_getLatestRiskScore()),
-                        style: const pw.TextStyle(fontSize: 14),
-                      ),
-                    ],
-                  ),
-                ),
+
+                // Get category scores
+                ..._getHypertensionCategoryScores().entries.map((entry) {
+                  final categoryName = entry.key;
+                  final score = entry.value;
+                  final percentage = (score / 20.0) * 100;
+                  final riskLevel = _getRiskLevel(score);
+                  final riskDescription = _getRiskDescription(score);
+
+                  return pw.Container(
+                    margin: const pw.EdgeInsets.only(bottom: 10),
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.black),
+                      borderRadius: pw.BorderRadius.circular(5),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Row(
+                          children: [
+                            pw.Expanded(
+                              child: pw.Text(
+                                categoryName,
+                                style: pw.TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            pw.Container(
+                              padding: const pw.EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: pw.BoxDecoration(
+                                color: riskLevel == 'High'
+                                    ? PdfColors.red
+                                    : riskLevel == 'Moderate'
+                                        ? PdfColors.orange
+                                        : PdfColors.green,
+                                borderRadius: pw.BorderRadius.circular(3),
+                              ),
+                              child: pw.Text(
+                                riskLevel,
+                                style: pw.TextStyle(
+                                  color: PdfColors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        pw.SizedBox(height: 5),
+                        pw.Text(
+                          'Score: ${percentage.toStringAsFixed(0)}% (${score.toStringAsFixed(1)}/20)',
+                          style: const pw.TextStyle(fontSize: 14),
+                        ),
+                        pw.SizedBox(height: 5),
+                        pw.Text(
+                          riskDescription,
+                          style: const pw.TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+
                 pw.SizedBox(height: 20),
                 pw.Text(
-                  'Recommendations',
+                  'Personalized Recommendations',
                   style: pw.TextStyle(
                     fontSize: 18,
                     fontWeight: pw.FontWeight.bold,
@@ -1406,11 +1327,8 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   fontFamily: 'Bold',
                 ),
                 const SizedBox(height: 16),
-                RiskAssessmentCard(
-                  riskScore: _getLatestRiskScore(),
-                  riskLevel: _getRiskLevel(_getLatestRiskScore()),
-                  description: _getRiskDescription(_getLatestRiskScore()),
-                ),
+                // Individual Category Scores
+                _buildCategoryScoresCards(),
                 const SizedBox(height: 24),
                 // Add the hypertension result image section
                 _buildHypertensionResultImage(),
@@ -1422,139 +1340,211 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   fontFamily: 'Bold',
                 ),
                 const SizedBox(height: 16),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _recommendations.length,
-                  itemBuilder: (context, index) {
-                    final recommendation = _recommendations[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+
+                // Check if a recommendation is selected
+                if (_selectedRecommendationIndex != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Back button
+                      TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _selectedRecommendationIndex = null;
+                          });
+                        },
+                        icon: const Icon(Icons.arrow_back, color: primary),
+                        label: TextWidget(
+                          text: 'Back to Recommendations',
+                          fontSize: 14,
+                          color: primary,
+                        ),
                       ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: surface,
+                      const SizedBox(height: 16),
+
+                      // Selected recommendation details
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: surface,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: _recommendations[
+                                                      _selectedRecommendationIndex!]
+                                                  ['priority'] ==
+                                              'high'
+                                          ? healthRed.withOpacity(0.1)
+                                          : accent.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Icon(
+                                      _getCategoryIcon(_recommendations[
+                                              _selectedRecommendationIndex!]
+                                          ['title']),
+                                      size: 20,
+                                      color: _recommendations[
+                                                      _selectedRecommendationIndex!]
+                                                  ['priority'] ==
+                                              'high'
+                                          ? healthRed
+                                          : accent,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextWidget(
+                                      text: _recommendations[
+                                              _selectedRecommendationIndex!]
+                                          ['title'],
+                                      fontSize: 16,
+                                      color: textPrimary,
+                                      fontFamily: 'Bold',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Recommendation bullets
+                              if (_recommendations[
+                                      _selectedRecommendationIndex!]
+                                  .containsKey('bullets'))
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: (_recommendations[
+                                              _selectedRecommendationIndex!]
+                                          ['bullets'] as List<String>)
+                                      .map((bullet) => Padding(
+                                            padding: const EdgeInsets.only(
+                                                bottom: 8),
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Container(
+                                                  margin: const EdgeInsets.only(
+                                                      top: 6, right: 8),
+                                                  width: 6,
+                                                  height: 6,
+                                                  decoration: BoxDecoration(
+                                                    color: _recommendations[
+                                                                    _selectedRecommendationIndex!]
+                                                                ['priority'] ==
+                                                            'high'
+                                                        ? healthRed
+                                                        : accent,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                ),
+                                                Expanded(
+                                                  child: TextWidget(
+                                                    text: bullet,
+                                                    fontSize: 14,
+                                                    color: textPrimary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ))
+                                      .toList(),
+                                )
+                              else
+                                // Fallback to description if bullets are not available
+                                TextWidget(
+                                  text: _recommendations[
+                                          _selectedRecommendationIndex!]
+                                      ['description'],
+                                  fontSize: 14,
+                                  color: textPrimary,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  // Grid view of recommendation cards
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.2,
+                    ),
+                    itemCount: _recommendations.length,
+                    itemBuilder: (context, index) {
+                      final recommendation = _recommendations[index];
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedRecommendationIndex = index;
+                          });
+                        },
+                        child: Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: surface,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.all(6),
+                                  padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
                                     color: recommendation['priority'] == 'high'
                                         ? healthRed.withOpacity(0.1)
                                         : accent.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(6),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Icon(
                                     _getCategoryIcon(recommendation['title']),
-                                    size: 20,
+                                    size: 24,
                                     color: recommendation['priority'] == 'high'
                                         ? healthRed
                                         : accent,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextWidget(
-                                    text: recommendation['title'],
-                                    fontSize: 16,
-                                    color: textPrimary,
-                                    fontFamily: 'Bold',
-                                  ),
+                                const SizedBox(height: 12),
+                                TextWidget(
+                                  text: recommendation['title'],
+                                  fontSize: 14,
+                                  color: textPrimary,
+                                  fontFamily: 'Bold',
+                                  align: TextAlign.center,
+                                  maxLines: 2,
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
-                            // Check if recommendation has bullets
-                            if (recommendation.containsKey('bullets'))
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: (recommendation['bullets']
-                                        as List<String>)
-                                    .map((bullet) => Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 6),
-                                          child: Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Container(
-                                                margin: const EdgeInsets.only(
-                                                    top: 6, right: 8),
-                                                width: 6,
-                                                height: 6,
-                                                decoration: BoxDecoration(
-                                                  color: recommendation[
-                                                              'priority'] ==
-                                                          'high'
-                                                      ? healthRed
-                                                      : accent,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                              ),
-                                              Expanded(
-                                                child: TextWidget(
-                                                  text: bullet,
-                                                  fontSize: 14,
-                                                  color: textPrimary,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ))
-                                    .toList(),
-                              )
-                            else
-                              // Fallback to description if bullets are not available
-                              TextWidget(
-                                text: recommendation['description'],
-                                fontSize: 14,
-                                color: textPrimary,
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 24),
-                TextWidget(
-                  text: 'Health Trend',
-                  fontSize: 20,
-                  color: textPrimary,
-                  fontFamily: 'Bold',
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  height: 200,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: grey),
-                  ),
-                  child: _trendData.isEmpty
-                      ? Center(
-                          child: TextWidget(
-                            text: 'No data available',
-                            fontSize: 16,
-                            color: textLight,
                           ),
-                        )
-                      : CustomPaint(
-                          painter: TrendChartPainter(_trendData),
-                          size: const Size(double.infinity, 200),
                         ),
-                ),
-                const SizedBox(height: 24),
+                      );
+                    },
+                  ),
+                const SizedBox(height: 30),
+
                 Center(
                   child: ButtonWidget(
                     label: 'Export Health Report',
@@ -1573,15 +1563,22 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
       return const SizedBox.shrink();
     }
 
-    final latestResponse = _surveyResponses.first;
+    // Find the hypertension survey response or use the first response with age data
+    SurveyResponse? responseWithAge;
+    for (final response in _surveyResponses) {
+      if (response.surveyId == 'hypertension' ||
+          response.answers.containsKey('age')) {
+        responseWithAge = response;
+        break;
+      }
+    }
 
-    // Check if this is a hypertension survey
-    if (latestResponse.surveyId != 'hypertension') {
+    if (responseWithAge == null) {
       return const SizedBox.shrink();
     }
 
     // Get age from the survey response
-    final age = latestResponse.answers['age'];
+    final age = responseWithAge.answers['age'];
     if (age == null) {
       return const SizedBox.shrink();
     }
@@ -1590,8 +1587,16 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     final ageGroup = _getAgeGroup(age);
 
     // Determine if user has hypertension based on risk score and new thresholds
-    final hasHypertension = _getLatestRiskScore() >=
-        13; // Using 13 as threshold for high risk in new system
+    // Use the hypertension survey score if available, otherwise use the overall risk
+    double riskScore;
+    if (responseWithAge.surveyId == 'hypertension') {
+      riskScore = responseWithAge.riskScore;
+    } else {
+      riskScore = _getLatestRiskScore();
+    }
+
+    final hasHypertension =
+        riskScore >= 13; // Using 13 as threshold for high risk in new system
 
     // Construct image path based on actual filenames in the assets folders
     String imagePath;
@@ -1605,7 +1610,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         imagePath = 'assets/images/Without Hypertension/40-49 wo HPN.png';
       } else {
         imagePath =
-            'assets/images/Without Hypertension/$ageGroup without HPN.png';
+            'assets/images/Without Hypertension/${ageGroup.split(' ')[0]} without HPN.png';
       }
     }
 
@@ -1701,6 +1706,68 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         return Icons.info;
     }
   }
+
+  // Build category score cards
+  Widget _buildCategoryScoresCards() {
+    final categoryScores = _getHypertensionCategoryScores();
+
+    return Column(
+      children: categoryScores.entries.map((entry) {
+        final categoryName = entry.key;
+        final score = entry.value;
+        final riskLevel = _getRiskLevel(score);
+        final riskDescription = _getRiskDescription(score);
+
+        // Check if score is 0 (survey not taken)
+        if (score == 0) {
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: surface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextWidget(
+                    text:
+                        '● Answer the ${categoryName.split(' ')[0]} Survey to get your Risk Score.',
+                    fontSize: 16,
+                    color: textPrimary,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Calculate percentage (score out of 20)
+        final percentage = (score / 20.0) * 100;
+
+        // Use the same UI as RiskAssessmentCard for each category
+        // but modify the description to include the percentage
+        return RiskAssessmentCard(
+          riskScore: percentage, // Pass percentage instead of raw score
+          riskLevel: riskLevel,
+          description: riskDescription,
+          title: categoryName, // Pass category name as title
+        );
+      }).toList(),
+    );
+  }
+
+  // Get risk color based on score
+  Color _getRiskColor(double score) {
+    if (score >= 13) return healthRed;
+    if (score >= 7) return Colors.orange;
+    return healthGreen;
+  }
 }
 
 class TrendChartPainter extends CustomPainter {
@@ -1716,7 +1783,14 @@ class TrendChartPainter extends CustomPainter {
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
-    final trendPaint = paint..color = primary;
+    // Define colors for each category
+    final categoryColors = {
+      'Biological and Genetic Factors': Colors.red,
+      'Socioeconomic & Demographic Factors': Colors.green,
+      'Lifestyle and Behavioral Factors': Colors.blue,
+      'Dietary and Nutritional Factors': Colors.orange,
+      'Healthcare Access and Management Behaviors': Colors.purple,
+    };
 
     final textPainter = TextPainter(
       textAlign: TextAlign.center,
@@ -1724,13 +1798,13 @@ class TrendChartPainter extends CustomPainter {
     );
 
     final double chartWidth = size.width - 40;
-    final double chartHeight = size.height - 40;
+    final double chartHeight = size.height - 60; // Extra space for legend
     final double pointSpacing =
         data.length > 1 ? chartWidth / (data.length - 1) : 0;
 
     // Find min and max values for scaling
     int minVal = 0;
-    int maxVal = 100;
+    int maxVal = 20; // Maximum score per category
 
     // Draw grid lines
     final gridPaint = Paint()
@@ -1738,12 +1812,12 @@ class TrendChartPainter extends CustomPainter {
       ..strokeWidth = 0.5;
 
     // Draw horizontal grid lines
-    for (int i = 0; i <= 5; i++) {
-      final double y = 20 + (chartHeight / 5) * i;
+    for (int i = 0; i <= 4; i++) {
+      final double y = 20 + (chartHeight / 4) * i;
       canvas.drawLine(Offset(20, y), Offset(size.width - 20, y), gridPaint);
 
       // Draw labels
-      final label = ((maxVal - (i * (maxVal - minVal) ~/ 5))).toString();
+      final label = ((maxVal - (i * (maxVal - minVal) ~/ 4))).toString();
       textPainter.text = TextSpan(
         text: label,
         style: const TextStyle(color: Colors.grey, fontSize: 10),
@@ -1752,50 +1826,85 @@ class TrendChartPainter extends CustomPainter {
       textPainter.paint(canvas, Offset(0, y - 6));
     }
 
-    // Draw data points and lines
-    if (data.isNotEmpty) {
-      Path trendPath = Path();
+    // Draw data points and lines for each category
+    for (final category in categoryColors.keys) {
+      final categoryPaint = paint..color = categoryColors[category]!;
+      Path categoryPath = Path();
+
       for (int i = 0; i < data.length; i++) {
         final double x = 20 + i * pointSpacing;
+        final score = data[i][category] ?? 0;
         final double y = 20 +
             chartHeight -
-            ((data[i]['score'] - minVal) / (maxVal - minVal)) * chartHeight;
+            ((score - minVal) / (maxVal - minVal)) * chartHeight;
 
         if (i == 0) {
-          trendPath.moveTo(x, y);
+          categoryPath.moveTo(x, y);
         } else {
-          trendPath.lineTo(x, y);
+          categoryPath.lineTo(x, y);
         }
 
         // Draw point
         canvas.drawCircle(
-            Offset(x, y), 4, trendPaint..style = PaintingStyle.fill);
+            Offset(x, y), 3, categoryPaint..style = PaintingStyle.fill);
       }
-      canvas.drawPath(trendPath, trendPaint..style = PaintingStyle.stroke);
+      canvas.drawPath(
+          categoryPath, categoryPaint..style = PaintingStyle.stroke);
+    }
 
-      // Draw labels for months
-      for (int i = 0; i < data.length; i++) {
-        final double x = 20 + i * pointSpacing;
-        textPainter.text = TextSpan(
-          text: data[i]['month'],
-          style: const TextStyle(color: Colors.grey, fontSize: 10),
-        );
-        textPainter.layout();
-        textPainter.paint(
-            canvas, Offset(x - textPainter.width / 2, size.height - 20));
-      }
-
-      // Draw Y-axis label
-      final yLabelPainter = TextPainter(
-        text: const TextSpan(
-          text: 'Risk Score',
-          style: TextStyle(color: Colors.grey, fontSize: 12),
-        ),
-        textAlign: TextAlign.center,
-        textDirection: TextDirection.ltr,
+    // Draw labels for months
+    for (int i = 0; i < data.length; i++) {
+      final double x = 20 + i * pointSpacing;
+      textPainter.text = TextSpan(
+        text: data[i]['month'],
+        style: const TextStyle(color: Colors.grey, fontSize: 10),
       );
-      yLabelPainter.layout();
-      yLabelPainter.paint(canvas, Offset(0, 0));
+      textPainter.layout();
+      textPainter.paint(
+          canvas, Offset(x - textPainter.width / 2, size.height - 40));
+    }
+
+    // Draw Y-axis label
+    final yLabelPainter = TextPainter(
+      text: const TextSpan(
+        text: 'Risk Score',
+        style: TextStyle(color: Colors.grey, fontSize: 12),
+      ),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    );
+    yLabelPainter.layout();
+    yLabelPainter.paint(canvas, const Offset(0, 0));
+
+    // Draw legend
+    double legendX = 20;
+    double legendY = size.height - 30;
+
+    for (final category in categoryColors.keys) {
+      // Draw color indicator
+      canvas.drawCircle(Offset(legendX, legendY), 4,
+          Paint()..color = categoryColors[category]!);
+
+      // Draw category name (abbreviated for space)
+      String abbreviatedName = category.split(' ')[0];
+      if (abbreviatedName.length > 8) {
+        abbreviatedName = abbreviatedName.substring(0, 8);
+      }
+
+      textPainter.text = TextSpan(
+        text: abbreviatedName,
+        style: const TextStyle(color: Colors.grey, fontSize: 9),
+      );
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(legendX + 8, legendY - 5));
+
+      legendX += textPainter.width + 20;
+
+      // Move to next line if needed
+      if (legendX > size.width - 100) {
+        legendX = 20;
+        legendY += 15;
+      }
     }
   }
 

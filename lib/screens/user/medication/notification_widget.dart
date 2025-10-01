@@ -3,18 +3,21 @@ import 'package:intl/intl.dart';
 import 'package:survey_app/utils/colors.dart';
 import 'package:survey_app/widgets/text_widget.dart';
 import 'package:survey_app/widgets/button_widget.dart';
+import 'package:survey_app/services/medication_service.dart';
 import 'notification_frequency_dialog.dart';
 
 class NotificationWidget extends StatelessWidget {
   final List<Map<String, dynamic>> notifications;
   final Function(String) onClear;
   final Function(String, TimeOfDay)? onSetFrequency;
+  final MedicationService medicationService;
 
   const NotificationWidget({
     super.key,
     required this.notifications,
     required this.onClear,
     this.onSetFrequency,
+    required this.medicationService,
   });
 
   @override
@@ -75,8 +78,13 @@ class NotificationWidget extends StatelessWidget {
                           ),
                         ),
                         TextButton(
-                          onPressed: () {
+                          onPressed: () async {
                             for (var notification in notifications) {
+                              // Cancel the scheduled notification
+                              await medicationService
+                                  .cancelScheduledNotification(
+                                      notification['id']);
+                              // Clear from local storage
                               onClear(notification['id']);
                             }
                             Navigator.of(context).pop();
@@ -167,7 +175,11 @@ class NotificationWidget extends StatelessWidget {
                     ),
                   ),
                   direction: DismissDirection.endToStart,
-                  onDismissed: (direction) {
+                  onDismissed: (direction) async {
+                    // Cancel the scheduled notification
+                    await medicationService
+                        .cancelScheduledNotification(notification['id']);
+                    // Clear from local storage
                     onClear(notification['id']);
                   },
                   child: Padding(
