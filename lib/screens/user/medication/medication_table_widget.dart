@@ -23,6 +23,13 @@ class MedicationTableWidget extends StatelessWidget {
     Map<String, List<Medication>> groupedMedications = {};
 
     for (var medication in medications) {
+      // Skip medications with null or empty time
+      if (medication.time == null || medication.time.isEmpty) {
+        print(
+            'Skipping medication with null or empty time: ${medication.drugName}');
+        continue;
+      }
+
       if (!groupedMedications.containsKey(medication.time)) {
         groupedMedications[medication.time] = [];
       }
@@ -32,8 +39,16 @@ class MedicationTableWidget extends StatelessWidget {
     // Sort times
     List<String> sortedTimes = groupedMedications.keys.toList();
     sortedTimes.sort((a, b) {
-      final format = DateFormat.jm();
-      return format.parse(a).compareTo(format.parse(b));
+      try {
+        final format = DateFormat.jm();
+        // Skip empty or null time strings
+        if (a.isEmpty || b.isEmpty) return 0;
+        return format.parse(a).compareTo(format.parse(b));
+      } catch (e) {
+        // If parsing fails, keep original order
+        print('Error parsing time: $e');
+        return 0;
+      }
     });
 
     return Column(
@@ -47,7 +62,7 @@ class MedicationTableWidget extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        if (medications.isEmpty)
+        if (medications.isEmpty || groupedMedications.isEmpty)
           const Center(
             child: Text(
               'No medications added yet',

@@ -39,8 +39,13 @@ class _MedicationScreenState extends State<MedicationScreen> {
   Future<void> _loadMedications() async {
     try {
       final medications = await _medicationService.getMedications();
+      // Filter out medications with null or empty time
+      final validMedications = medications
+          .where((med) => med.time != null && med.time.isNotEmpty)
+          .toList();
+
       setState(() {
-        _medications = medications;
+        _medications = validMedications;
       });
     } catch (e) {
       print('Error loading medications: $e');

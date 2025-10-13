@@ -63,7 +63,18 @@ class MedicationService {
       final medicationsJson = prefs.getStringList(_medicationsKey) ?? [];
 
       return medicationsJson.map((json) {
-        return Medication.fromMap(jsonDecode(json));
+        try {
+          return Medication.fromMap(jsonDecode(json));
+        } catch (e) {
+          print('Error parsing medication JSON: $e');
+          // Return a default medication if parsing fails
+          return Medication(
+            id: '',
+            drugName: 'Unknown Medication',
+            dose: 'Unknown Dose',
+            time: '',
+          );
+        }
       }).toList();
     } catch (e) {
       print('Error getting medications: $e');
