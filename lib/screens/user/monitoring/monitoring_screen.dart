@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:survey_app/services/auth_service.dart';
@@ -23,6 +24,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   List<HealthMetrics> _healthMetricsList = [];
   List<Map<String, dynamic>> _bpReadings = [];
   bool _isLoading = true;
+  StreamSubscription? _healthMetricsSubscription;
 
   // Controllers for the new reading form
   final TextEditingController _systolicController = TextEditingController();
@@ -40,19 +42,28 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   void _loadHealthMetrics() {
     if (_authService.currentUser == null) return;
 
+    // Cancel any existing subscription
+    _healthMetricsSubscription?.cancel();
+
     setState(() {
       _isLoading = true;
     });
 
     // Listen to health metrics updates
-    _userService.getUserHealthMetrics(_authService.currentUser!.uid).listen(
-        (metrics) {
-      setState(() {
-        _healthMetricsList = metrics;
-        _bpReadings = _convertToChartData(metrics);
-        _isLoading = false;
-      });
+    _healthMetricsSubscription = _userService
+        .getUserHealthMetrics(_authService.currentUser!.uid)
+        .listen((metrics) {
+      print('Received ${metrics.length} health metrics from stream');
+      if (mounted) {
+        setState(() {
+          _healthMetricsList = metrics;
+          _bpReadings = _convertToChartData(metrics);
+          _isLoading = false;
+        });
+        print('UI updated with ${metrics.length} metrics');
+      }
     }, onError: (error) {
+      print('Error in health metrics stream: $error');
       if (mounted) {
         Fluttertoast.showToast(
           msg: 'Failed to load health metrics',
@@ -73,19 +84,37 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     // Take the last 7 readings for the chart
     final recentMetrics = metrics.length > 7 ? metrics.sublist(0, 7) : metrics;
 
-    for (int i = 0; i < recentMetrics.length; i++) {
-      final metric = recentMetrics[i];
+    // Reverse the list to show oldest to newest dates (left to right)
+    final orderedMetrics = List.from(recentMetrics.reversed);
+
+    for (int i = 0; i < orderedMetrics.length; i++) {
+      final metric = orderedMetrics[i];
       final DateTime recordDate = metric.recordedAt;
 
       // Format date as MM/DD for better display
       final String formattedDate =
           '${recordDate.month.toString().padLeft(2, '0')}/${recordDate.day.toString().padLeft(2, '0')}';
 
+      // Ensure systolic is higher than diastolic (physiological check)
+      final int systolic = metric.systolicBP;
+      final int diastolic = metric.diastolicBP;
+
+      print('Adding chart data: systolic=$systolic, diastolic=$diastolic');
+
+      // If values seem swapped, fix them
+      final int finalSystolic = systolic > diastolic ? systolic : diastolic;
+      final int finalDiastolic = systolic > diastolic ? diastolic : systolic;
+
+      if (finalSystolic != systolic) {
+        print(
+            'Corrected swapped values: original systolic=$systolic, diastolic=$diastolic, corrected systolic=$finalSystolic, diastolic=$finalDiastolic');
+      }
+
       chartData.add({
         'date': formattedDate,
-        'systolic': metric.systolicBP,
-        'diastolic': metric.diastolicBP,
-        'combined': '${metric.systolicBP}/${metric.diastolicBP}',
+        'systolic': finalSystolic,
+        'diastolic': finalDiastolic,
+        'combined': '$finalSystolic/$finalDiastolic',
         'fullDate': metric.recordedAt.toString().split(' ')[0],
       });
     }
@@ -159,22 +188,22 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
   }
 
   String _getBpStatus(int systolic, int diastolic) {
-    // LOW: If either systolic BP is less than 90 or diastolic BP is less than 60
+    // LOW: If either systolic BP is less than 90 OR diastolic BP is less than 60
     if (systolic < 90 || diastolic < 60) return 'LOW';
 
-    // VERY HIGH: 140 and up or 90 and up
-    if (systolic >= 140 || diastolic >= 90) return 'VERY HIGH';
+    // VERY HIGH: 140 and up AND 90 and up
+    if (systolic >= 140 && diastolic >= 90) return 'VERY HIGH';
 
-    // HIGH: 130-139 or 80-89
-    if ((systolic >= 130 && systolic <= 139) ||
+    // HIGH: 130-139 AND 80-89
+    if ((systolic >= 130 && systolic <= 139) &&
         (diastolic >= 80 && diastolic <= 89)) return 'HIGH';
 
-    // ELEVATED: 120-129 or 60-79
-    if ((systolic >= 120 && systolic <= 129) ||
+    // ELEVATED: 120-129 AND 60-79
+    if ((systolic >= 120 && systolic <= 129) &&
         (diastolic >= 60 && diastolic <= 79)) return 'ELEVATED';
 
-    // NORMAL: 90-199 or 60-79 (but not matching other categories)
-    if ((systolic >= 90 && systolic <= 199) ||
+    // NORMAL: 90-119 AND 60-79
+    if ((systolic >= 90 && systolic <= 119) &&
         (diastolic >= 60 && diastolic <= 79)) return 'NORMAL';
 
     return 'NORMAL';
@@ -185,18 +214,18 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
     if (systolic < 90 || diastolic < 60) return Colors.blue;
 
     // VERY HIGH: Dark red color
-    if (systolic >= 140 || diastolic >= 90) return Colors.red.shade900;
+    if (systolic >= 140 && diastolic >= 90) return Colors.red.shade900;
 
     // HIGH: Red color
-    if ((systolic >= 130 && systolic <= 139) ||
+    if ((systolic >= 130 && systolic <= 139) &&
         (diastolic >= 80 && diastolic <= 89)) return Colors.red;
 
     // ELEVATED: Orange color
-    if ((systolic >= 120 && systolic <= 129) ||
+    if ((systolic >= 120 && systolic <= 129) &&
         (diastolic >= 60 && diastolic <= 79)) return Colors.orange;
 
     // NORMAL: Green color
-    if ((systolic >= 90 && systolic <= 199) ||
+    if ((systolic >= 90 && systolic <= 119) &&
         (diastolic >= 60 && diastolic <= 79)) return healthGreen;
 
     return healthGreen;
@@ -204,18 +233,18 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
 
   bool _isBpElevatedOrHigher(int systolic, int diastolic) {
     // Check if BP is elevated, high, or very high based on new criteria
-    // ELEVATED: 120-129 or 60-79
-    if ((systolic >= 120 && systolic <= 129) ||
+    // ELEVATED: 120-129 AND 60-79
+    if ((systolic >= 120 && systolic <= 129) &&
         (diastolic >= 60 && diastolic <= 79))
       return true; // Elevated Blood Pressure
 
-    // HIGH: 130-139 or 80-89
-    if ((systolic >= 130 && systolic <= 139) ||
+    // HIGH: 130-139 AND 80-89
+    if ((systolic >= 130 && systolic <= 139) &&
         (diastolic >= 80 && diastolic <= 89))
       return true; // High Blood Pressure
 
-    // VERY HIGH: 140 and up or 90 and up
-    if (systolic >= 140 || diastolic >= 90)
+    // VERY HIGH: 140 and up AND 90 and up
+    if (systolic >= 140 && diastolic >= 90)
       return true; // Very High Blood Pressure
 
     return false;
@@ -398,7 +427,9 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
         recordedAt: DateTime.now(),
       );
 
-      await _userService.addHealthMetrics(healthMetrics);
+      print('Saving new health metrics: ${healthMetrics.toJson()}');
+      final docRef = await _userService.addHealthMetrics(healthMetrics);
+      print('Document saved with ID: ${docRef.id}');
 
       if (mounted) {
         Fluttertoast.showToast(
@@ -406,11 +437,15 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
           backgroundColor: healthGreen,
           textColor: Colors.white,
         );
+        // The stream should automatically update since we're using snapshots
+        // No need to manually reload, but let's ensure the stream is active
+        print('New reading added with ID: ${docRef.id}');
       }
     } catch (e) {
+      print('Error saving health metrics: $e');
       if (mounted) {
         Fluttertoast.showToast(
-          msg: 'Failed to save reading. Please try again.',
+          msg: 'Failed to save reading: $e',
           backgroundColor: healthRed,
           textColor: Colors.white,
         );
@@ -420,6 +455,9 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
 
   @override
   void dispose() {
+    // Cancel the stream subscription to prevent setState after dispose
+    _healthMetricsSubscription?.cancel();
+
     _systolicController.dispose();
     _diastolicController.dispose();
     _heartRateController.dispose();
@@ -698,38 +736,38 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                         ),
                       ),
                       _buildBpClassificationRow(
+                        'Low',
+                        'less than 90',
+                        'or',
+                        'less than 60',
+                        Colors.blue, // Blue
+                      ),
+                      _buildBpClassificationRow(
                         'Normal',
-                        'less than 120',
+                        '90-119',
                         'and',
-                        'less than 80',
+                        '60-79',
                         const Color(0xFF4CAF50), // Green
                       ),
                       _buildBpClassificationRow(
                         'Elevated',
                         '120-129',
                         'and',
-                        'less than 80',
+                        '60-79',
                         const Color(0xFFFFC107), // Yellow/Orange
                       ),
                       _buildBpClassificationRow(
-                        'High Blood Pressure\n(Hypertension) Stage 1',
+                        'High',
                         '130-139',
-                        'or',
+                        'and',
                         '80-89',
-                        const Color(0xFFFF9800), // Orange
-                      ),
-                      _buildBpClassificationRow(
-                        'High Blood Pressure\n(Hypertension) Stage 2',
-                        '140 or higher',
-                        'or',
-                        '90 or higher',
                         const Color(0xFFE53935), // Red
                       ),
                       _buildBpClassificationRow(
-                        'Hypertensive Crisis',
-                        'higher than 180',
-                        'and/or',
-                        'higher than 120',
+                        'Very High',
+                        '140 and up',
+                        'and',
+                        '90 and up',
                         const Color(0xFFB71C1C), // Dark Red
                       ),
                     ],
@@ -809,12 +847,25 @@ class BloodPressureChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (data.isEmpty) return;
 
-    final paint = Paint()
-      ..strokeWidth = 2
+    // Create separate paint objects for each line
+    final systolicPaint = Paint()
+      ..strokeWidth = 3
+      ..color = healthRed
       ..style = PaintingStyle.stroke;
 
-    final systolicPaint = paint..color = Colors.red;
-    final diastolicPaint = paint..color = Colors.blue;
+    final diastolicPaint = Paint()
+      ..strokeWidth = 3
+      ..color = Colors.blue
+      ..style = PaintingStyle.stroke;
+
+    // Create fill paints for the data points
+    final systolicFillPaint = Paint()
+      ..color = healthRed
+      ..style = PaintingStyle.fill;
+
+    final diastolicFillPaint = Paint()
+      ..color = Colors.blue
+      ..style = PaintingStyle.fill;
 
     final textPainter = TextPainter(
       textAlign: TextAlign.center,
@@ -852,13 +903,21 @@ class BloodPressureChartPainter extends CustomPainter {
 
     // Draw data points and lines for systolic and diastolic blood pressure
     if (data.isNotEmpty) {
-      // Draw systolic line
+      // Debug output for first data point
+      print(
+          'Chart data - First point: systolic=${data[0]['systolic']}, diastolic=${data[0]['diastolic']}');
+
+      // Draw systolic line (should be red)
       Path systolicPath = Path();
       for (int i = 0; i < data.length; i++) {
         final double x = 20 + i * pointSpacing;
+        final int systolicValue = data[i]['systolic'] as int;
         final double y = 20 +
             chartHeight -
-            ((data[i]['systolic'] - minVal) / (maxVal - minVal)) * chartHeight;
+            ((systolicValue - minVal) / (maxVal - minVal)) * chartHeight;
+
+        print(
+            'Drawing systolic point at index $i: value=$systolicValue, x=$x, y=$y');
 
         if (i == 0) {
           systolicPath.moveTo(x, y);
@@ -867,19 +926,21 @@ class BloodPressureChartPainter extends CustomPainter {
         }
 
         // Draw systolic point
-        canvas.drawCircle(
-            Offset(x, y), 4, systolicPaint..style = PaintingStyle.fill);
+        canvas.drawCircle(Offset(x, y), 4, systolicFillPaint);
       }
-      canvas.drawPath(
-          systolicPath, systolicPaint..style = PaintingStyle.stroke);
+      canvas.drawPath(systolicPath, systolicPaint);
 
-      // Draw diastolic line
+      // Draw diastolic line (should be blue)
       Path diastolicPath = Path();
       for (int i = 0; i < data.length; i++) {
         final double x = 20 + i * pointSpacing;
+        final int diastolicValue = data[i]['diastolic'] as int;
         final double y = 20 +
             chartHeight -
-            ((data[i]['diastolic'] - minVal) / (maxVal - minVal)) * chartHeight;
+            ((diastolicValue - minVal) / (maxVal - minVal)) * chartHeight;
+
+        print(
+            'Drawing diastolic point at index $i: value=$diastolicValue, x=$x, y=$y');
 
         if (i == 0) {
           diastolicPath.moveTo(x, y);
@@ -888,11 +949,9 @@ class BloodPressureChartPainter extends CustomPainter {
         }
 
         // Draw diastolic point
-        canvas.drawCircle(
-            Offset(x, y), 4, diastolicPaint..style = PaintingStyle.fill);
+        canvas.drawCircle(Offset(x, y), 4, diastolicFillPaint);
       }
-      canvas.drawPath(
-          diastolicPath, diastolicPaint..style = PaintingStyle.stroke);
+      canvas.drawPath(diastolicPath, diastolicPaint);
 
       // Draw labels for days and BP readings
       for (int i = 0; i < data.length; i++) {
@@ -922,7 +981,7 @@ class BloodPressureChartPainter extends CustomPainter {
       final legendPaint = Paint()..style = PaintingStyle.fill;
 
       // Systolic legend
-      canvas.drawCircle(Offset(30, 10), 4, legendPaint..color = Colors.red);
+      canvas.drawCircle(Offset(30, 10), 4, legendPaint..color = healthRed);
       textPainter.text = const TextSpan(
         text: 'Systolic',
         style: TextStyle(color: Colors.grey, fontSize: 10),
@@ -942,5 +1001,5 @@ class BloodPressureChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
